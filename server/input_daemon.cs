@@ -399,13 +399,11 @@ namespace AetherControl
                     }
                     else if (cmd == "snip")
                     {
-                        keybd_event(0x5B, 0, 0, 0); // LWIN
-                        keybd_event(0x10, 0, 0, 0); // SHIFT
-                        keybd_event(0x53, 0, 0, 0); // S
+                        keybd_event(0x12, 0, 0, 0); // ALT
+                        keybd_event(0x2C, 0, 0, 0); // PRTSCN
                         Thread.Sleep(50);
-                        keybd_event(0x53, 0, KEYEVENTF_KEYUP, 0);
-                        keybd_event(0x10, 0, KEYEVENTF_KEYUP, 0);
-                        keybd_event(0x5B, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x2C, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x12, 0, KEYEVENTF_KEYUP, 0);
                     }
                     else if (cmd == "cap")
                     {

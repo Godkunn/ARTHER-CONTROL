@@ -280,23 +280,40 @@ export default function Dashboard() {
         <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">Master Audio</p>
-            <p className="text-lg font-bold text-slate-100 font-mono">
-              {systemStatus.isMuted ? 'Muted' : `${systemStatus.volume || 75}%`}
-            </p>
-            <span className="text-[9px] font-mono text-titanium-400">Windows Volume</span>
+            <div className="flex items-center space-x-1 mt-1">
+              <span className="text-[9px] font-mono text-titanium-400">Windows Control</span>
+            </div>
           </div>
-          {systemStatus.isMuted ? (
-            <VolumeX className="w-5 h-5 text-aurora-pink" />
-          ) : (
-            <Volume2 className="w-5 h-5 text-aurora-blue" />
-          )}
+          <div className="flex space-x-2">
+            <button
+              onClick={() => executeCommand('VOLUME_DOWN')}
+              title="Decrease Master Volume"
+              className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:border-aurora-cyan/40 active:scale-95 transition"
+            >
+              <Volume2 className="w-4 h-4 text-titanium-400" />
+            </button>
+            <button
+              onClick={() => executeCommand('VOLUME_UP')}
+              title="Increase Master Volume"
+              className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:border-aurora-cyan/40 active:scale-95 transition"
+            >
+              <Volume2 className="w-5 h-5 text-aurora-cyan" />
+            </button>
+            <button
+              onClick={() => executeCommand('TOGGLE_MUTE')}
+              title="Toggle Mute"
+              className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:border-aurora-pink/40 active:scale-95 transition"
+            >
+              <VolumeX className="w-5 h-5 text-aurora-pink" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* EXPANDED POWER COMMAND DOCK */}
       <div className="glass-panel p-4 rounded-2xl border border-obsidian-750 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-200 tracking-wider uppercase flex items-center space-x-2">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xs font-mono text-titanium-200 uppercase tracking-wider flex items-center space-x-2">
             <Zap className="w-4 h-4 text-aurora-amber" />
             <span>Quick Command Dock</span>
           </h3>
@@ -353,19 +370,19 @@ export default function Dashboard() {
           <button
             onClick={() => executeCommand('SNIP')}
             className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
-            title="Windows Snipping Tool (Win+Shift+S)"
+            title="Auto Full Screen Screenshot to Clipboard (PrtScn)"
           >
             <Scissors className="w-4 h-4 text-aurora-cyan" />
             <span className="text-[10px] font-mono text-titanium-300">Snip</span>
           </button>
 
           <button
-            onClick={() => executeCommand('FULLSCREEN')}
+            onClick={() => executeCommand('REOPEN_TAB')}
             className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-blue/40 active:scale-95 transition"
-            title="Toggle Fullscreen (F11)"
+            title="Reopen Closed Tab (Ctrl+Shift+T)"
           >
-            <Maximize className="w-4 h-4 text-aurora-blue" />
-            <span className="text-[10px] font-mono text-titanium-300">Fullscr</span>
+            <Globe className="w-4 h-4 text-aurora-blue" />
+            <span className="text-[10px] font-mono text-titanium-300">Reopen</span>
           </button>
 
           <button
@@ -380,11 +397,17 @@ export default function Dashboard() {
           {/* ROW 2 */}
           <button
             onClick={() => setShowUnlockModal(true)}
-            className="p-2.5 rounded-xl bg-aurora-emerald/20 border border-aurora-emerald/50 text-center flex flex-col items-center justify-center space-y-1 shadow-glow-emerald hover:bg-aurora-emerald/30 active:scale-95 transition"
+            className={`p-2.5 rounded-xl text-center flex flex-col items-center justify-center space-y-1 active:scale-95 transition ${
+              (systemStatus.activeWindow || '').toLowerCase().includes('logon') 
+              ? 'bg-aurora-emerald/20 border border-aurora-emerald/50 shadow-glow-emerald hover:bg-aurora-emerald/30' 
+              : 'glass-card hover:border-aurora-emerald/40'
+            }`}
             title="Wake & Remote Unlock Laptop with Scan Codes"
           >
             <Zap className="w-4 h-4 text-aurora-emerald" />
-            <span className="text-[10px] font-mono text-aurora-emerald font-bold">Unlock</span>
+            <span className={`text-[10px] font-mono ${
+              (systemStatus.activeWindow || '').toLowerCase().includes('logon') ? 'text-aurora-emerald font-bold' : 'text-titanium-300'
+            }`}>Unlock</span>
           </button>
 
           <button
