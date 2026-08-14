@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Zap, Shield, Volume2, VolumeX, Lock, Cpu, Eye,
-  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, Fingerprint, Scissors, Maximize, Plus, X, Settings, HardDrive, Info, Sparkles
+  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, RotateCcw, Fingerprint, Scissors, Maximize, Plus, X, Settings, HardDrive, Info, Sparkles
 } from 'lucide-react';
 
 export default function Dashboard() {

@@ -182,66 +182,37 @@ setInterval(() => {
 }, 2000);
 
 // ─────────────────────────────────────────────
-// REAL WINDOWS DIALOG/UAC DETECTOR LOOP
+// ZERO-CPU REAL WINDOWS DIALOG/APPROVAL DETECTOR
 // ─────────────────────────────────────────────
 const detectedDialogIds = new Set();
 
 setInterval(() => {
-  if (clients.size === 0) return; // no point if nobody connected
-  const psScript = `
-    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $cond = New-Object System.Windows.Automation.PropertyCondition(
-      [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-      [System.Windows.Automation.ControlType]::Window
-    )
-    $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
-    $dialogs = @()
-    foreach ($w in $windows) {
-      $name = $w.Current.Name
-      $pid  = $w.Current.ProcessId
-      if ($name -match 'User Account Control|Administrator|Allow|Confirm|Permission|consent|elevation') {
-        $dialogs += "$pid|$name"
-      }
+  if (clients.size === 0) return;
+  const status = getSystemStatus();
+  const activeTitle = status.activeWindow || '';
+  if (activeTitle.match(/User Account Control|Administrator|Allow|Confirm|Permission|consent|elevation|Antigravity/i)) {
+    const dialogId = `dlg-${activeTitle.substring(0, 20)}`;
+    if (!detectedDialogIds.has(dialogId)) {
+      detectedDialogIds.add(dialogId);
+      const approval = {
+        id: dialogId,
+        app: 'Windows System',
+        title: activeTitle,
+        description: `Active prompt requires action: "${activeTitle}". Tap Allow on phone to confirm.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        severity: 'danger',
+        isSystemDialog: true,
+        actions: [
+          { id: 'yes', label: '1. Allow / Confirm', type: 'primary' },
+          { id: 'no', label: '2. Dismiss / Deny', type: 'danger' }
+        ]
+      };
+      status.pendingApprovals.unshift(approval);
+      broadcast({ type: 'approval_required', approval });
+      setTimeout(() => detectedDialogIds.delete(dialogId), 15000);
     }
-    if ($dialogs.Count -gt 0) { $dialogs -join ';;' } else { '' }
-  `.trim();
-  execChild(`powershell -NoProfile -NonInteractive -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`,
-    { timeout: 3000 },
-    (err, stdout) => {
-      if (err || !stdout.trim()) return;
-      const entries = stdout.trim().split(';;').filter(Boolean);
-      for (const entry of entries) {
-        const [pid, name] = entry.split('|');
-        const dialogId = `uac-${pid}`;
-        if (detectedDialogIds.has(dialogId)) continue;
-        detectedDialogIds.add(dialogId);
-        const approval = {
-          id: dialogId,
-          app: 'Windows System',
-          title: name || 'Permission Required',
-          description: `A system dialog needs your approval: "${name}". Click Allow on phone to confirm, or Deny to dismiss.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          severity: 'danger',
-          isSystemDialog: true,
-          actions: [
-            { id: 'yes', label: '1. Allow / Yes', type: 'primary' },
-            { id: 'view_details', label: '2. View Certificate Details', type: 'secondary' },
-            { id: 'allow_once', label: '3. Allow for this session only', type: 'secondary' },
-            { id: 'sandbox', label: '4. Run in Sandbox container', type: 'secondary' },
-            { id: 'no', label: '5. Deny / No', type: 'danger' }
-          ]
-        };
-        // Add to pending
-        const status = getSystemStatus();
-        status.pendingApprovals.unshift(approval);
-        broadcast({ type: 'approval_required', approval });
-        // Auto-remove from detected set after 15s (dialog may have been closed)
-        setTimeout(() => detectedDialogIds.delete(dialogId), 15000);
-      }
-    }
-  );
-}, 3000);
+  }
+}, 1500);
 
 
 // ─────────────────────────────────────────────
