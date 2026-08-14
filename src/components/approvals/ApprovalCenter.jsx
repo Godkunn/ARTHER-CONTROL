@@ -53,6 +53,29 @@ export default function ApprovalCenter() {
         </button>
       </div>
 
+      {/* REAL-TIME WATCHER STATUS BANNER */}
+      <div className="glass-panel p-3.5 rounded-xl border border-aurora-emerald/30 bg-aurora-emerald/5 flex items-center justify-between shadow-glow-emerald">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-full bg-aurora-emerald/20 flex items-center justify-center border border-aurora-emerald/40 relative">
+            <div className="absolute inset-0 rounded-full animate-ping bg-aurora-emerald/20"></div>
+            <ShieldAlert className="w-4 h-4 text-aurora-emerald z-10 relative" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-aurora-emerald uppercase tracking-wider flex items-center space-x-2">
+              <span>Real-Time Auto Detector Active</span>
+            </h3>
+            <p className="text-[10px] font-mono text-titanium-300 mt-0.5 leading-relaxed pr-2">
+              Windows UIAutomation watcher is running 24/7 in the background.<br/>
+              UAC, Admin permissions, and Antigravity requests will instantly pop up here.
+            </p>
+          </div>
+        </div>
+        <div className="flex-shrink-0 text-[10px] font-mono text-aurora-emerald font-bold border border-aurora-emerald/40 px-2.5 py-1 rounded-md bg-aurora-emerald/20 flex items-center space-x-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-aurora-emerald animate-pulse"></span>
+          <span>LIVE</span>
+        </div>
+      </div>
+
       {/* Segment Selector Tabs */}
       <div className="flex bg-obsidian-900/80 p-1 rounded-xl border border-obsidian-750 max-w-xs">
         <button
