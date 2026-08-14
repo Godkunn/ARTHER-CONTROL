@@ -1,0 +1,57 @@
+# Dependency directories
+node_modules/
+dist/
+dist-ssr/
+build/
+
+# Local Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+*.pem
+*.key
+*.token
+credentials.json
+secrets/
+
+# Temporary screenshots & local test artifacts
+*.jpg
+*.jpeg
+*.png
+!docs/images/*.jpg
+!docs/images/*.png
+!public/*.svg
+!public/*.png
+
+# Local scratch and test scripts
+fix_usb.ps1
+get_procs.ps1
+print_win.ps1
+temp_cap.ps1
+test_clip.ps1
+wake_capture.ps1
+server/test_*
+server/get_real_windows.js
+
+# Compiled binaries (compiled dynamically by csc.exe)
+server/input_daemon.exe
+server/input_daemon.pdb
+*.exe
+*.dll
+*.pdb
+
+# Logs & debug files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
