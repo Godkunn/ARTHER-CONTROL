@@ -19,7 +19,9 @@ import {
   nativeMouseScroll,
   nativeAltTab,
   nativeSendKeys,
-  nativeWake
+  nativeWake,
+  requestHardwareStats,
+  getCachedHardwareStats
 } from './nativeInputManager.js';
 
 // Initialize power keep-awake on startup
@@ -57,28 +59,54 @@ export async function captureScreen() {
 }
 
 // ─────────────────────────────────────────────
-// SYSTEM STATS (real)
+// SYSTEM STATS (real live dynamic)
 // ─────────────────────────────────────────────
+let prevCpuTimes = null;
+
+function calculateRealCpuUsage() {
+  const cpus = os.cpus();
+  let totalUser = 0, totalNice = 0, totalSys = 0, totalIdle = 0, totalIrq = 0;
+  for (const cpu of cpus) {
+    totalUser += cpu.times.user;
+    totalNice += cpu.times.nice;
+    totalSys += cpu.times.sys;
+    totalIdle += cpu.times.idle;
+    totalIrq += cpu.times.irq;
+  }
+  const total = totalUser + totalNice + totalSys + totalIdle + totalIrq;
+  const idle = totalIdle;
+
+  if (!prevCpuTimes) {
+    prevCpuTimes = { total, idle };
+    return Math.min(95, Math.max(5, Math.round(((total - idle) / total) * 100)));
+  }
+
+  const deltaTotal = total - prevCpuTimes.total;
+  const deltaIdle = idle - prevCpuTimes.idle;
+  prevCpuTimes = { total, idle };
+
+  if (deltaTotal <= 0) return 15;
+  const usage = Math.round(((deltaTotal - deltaIdle) / deltaTotal) * 100);
+  return Math.min(100, Math.max(0, usage));
+}
+
 export function getRealSystemStats() {
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
   const usedMem = totalMem - freeMem;
   const ramUsage = Math.round((usedMem / totalMem) * 100);
-
-  const cpus = os.cpus();
-  let cpuUsage = 0;
-  if (cpus && cpus.length > 0) {
-    const cpu = cpus[0];
-    const total = Object.values(cpu.times).reduce((a, b) => a + b, 0);
-    const idle = cpu.times.idle;
-    cpuUsage = Math.round(((total - idle) / total) * 100);
-  }
+  const cpuUsage = calculateRealCpuUsage();
+  const hw = requestHardwareStats();
 
   return {
-    cpuUsage: Math.max(5, Math.min(95, cpuUsage || 20)),
+    cpuUsage,
     ramUsage,
     totalMemGB: (totalMem / (1024 ** 3)).toFixed(1),
     usedMemGB: (usedMem / (1024 ** 3)).toFixed(1),
+    freeMemGB: (freeMem / (1024 ** 3)).toFixed(1),
+    batteryPercent: hw.batteryPercent || 100,
+    isCharging: hw.isCharging,
+    activeWindow: hw.activeWindow || 'Desktop',
     platform: os.platform(),
     hostname: os.hostname(),
     uptime: Math.floor(os.uptime()),

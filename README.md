@@ -17,7 +17,7 @@
   <b>AETHER CONTROL</b> turns any smartphone or secondary device into an ultra-low latency, zero-data remote cockpit for your workstation. Seamlessly monitor AI agents (like Antigravity & Codex), grant 5-level system approvals on the go, and interact with your desktop via 1-to-1 pixel touch, 2-finger scroll, and hold-to-drag precision gestures.
 </p>
 
-[Key Features](#-key-features) • [System Architecture](#-system-architecture) • [Getting Started](#-getting-started) • [Security](#-enterprise-security--privacy) • [Tech Stack](#-technology-stack)
+[Key Features](#-key-features) • [System Architecture](#-system-architecture) • [System Design (HLD & LLD)](./docs/SYSTEM_DESIGN.md) • [Getting Started](#-getting-started) • [Security](#-enterprise-security--privacy) • [Tech Stack](#-technology-stack)
 
 ---
 
@@ -49,7 +49,7 @@
 - **Live Laser Cursor Reticle:** A glowing neon HUD display tracks exact `(X, Y)` screen coordinates with animated tactile ripples.
 
 ### 🔔 3. AI Agent & Windows UAC Approval Relay
-- Automatically intercepts Windows UAC dialogs, Antigravity IDE permissions, and terminal execution requests.
+- Automatically intercepts Windows UAC dialogs, IDE permissions, and terminal execution requests.
 - Relays prompts to your mobile screen with **5 granular authorization levels** (Allow Once, Always Allow, Sandbox, Deny, View Details).
 - Native browser push notifications and auditory chimes ensure you never miss an agent authorization checkpoint.
 
@@ -63,7 +63,7 @@
 
 ---
 
-## 🏛 System Architecture
+## 🏛 System Architecture (HLD & LLD)
 
 AETHER CONTROL employs a decoupled, multi-tiered architecture that separates the high-frequency input loop from the adaptive video streamer, ensuring consistent 60fps local responsiveness even under heavy CPU loads:
 
@@ -87,6 +87,8 @@ AETHER CONTROL employs a decoupled, multi-tiered architecture that separates the
  │   C# / User32.dll (0.05ms)  │ │  Local Screen Frame Buffer  │
  └─────────────────────────────┘ └─────────────────────────────┘
 ```
+
+> 📖 **Deep Technical Dive:** For complete High-Level & Low-Level architectural specs, IPC schemas, and protocol definitions, read the **[System Design Document (HLD & LLD)](./docs/SYSTEM_DESIGN.md)**.
 
 ---
 
@@ -125,8 +127,8 @@ The terminal will automatically detect your active network interfaces and print 
 ║       AETHER CONTROL — DAEMON ACTIVE         ║
 ╠══════════════════════════════════════════════╣
 ║  Local:    http://localhost:3001             ║
-║  LAN:      http://192.168.1.15:3001          ║
-║  USB:      http://10.238.240.70:3001 (USB)   ║
+║  LAN:      http://192.168.x.x:3001           ║
+║  USB:      http://10.x.x.x:3001 (Direct USB) ║
 ║  mDNS:     http://aether-control.local:3001  ║
 ╚══════════════════════════════════════════════╝
 ```
@@ -159,5 +161,5 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 <br/>
 
 <div align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/Godkunn">Godkunn</a> & Pair-Programmed with Antigravity AI</sub>
+  <sub>Built with ❤️ by <a href="https://github.com/Godkunn">Godkunn</a></sub>
 </div>

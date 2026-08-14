@@ -9,7 +9,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const daemonExe = path.join(__dirname, 'input_daemon.exe');
 
-let daemonProcess = null;
+let latestStats = {
+  batteryPercent: 100,
+  isCharging: true,
+  activeWindow: 'Desktop'
+};
 
 export function startInputDaemon() {
   if (daemonProcess) return;
@@ -21,15 +25,41 @@ export function startInputDaemon() {
       windowsHide: true
     });
 
+    daemonProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('STAT:')) {
+          const parts = trimmed.substring(5).split('|');
+          if (parts.length >= 3) {
+            latestStats = {
+              batteryPercent: parseInt(parts[0], 10) || 100,
+              isCharging: parts[1] === '1',
+              activeWindow: parts.slice(2).join('|') || 'Desktop'
+            };
+          }
+        }
+      }
+    });
+
     daemonProcess.on('exit', () => {
       daemonProcess = null;
-      setTimeout(startInputDaemon, 1000); // Auto-respawn if needed
+      setTimeout(startInputDaemon, 1000);
     });
 
     console.log('[AETHER INPUT] Native Ultra-Fast Win32 Input Daemon active (0.05ms response)');
   } catch (err) {
     console.warn('[AETHER INPUT] Native input daemon notice:', err.message);
   }
+}
+
+export function requestHardwareStats() {
+  sendDaemonCommand('get_stats');
+  return latestStats;
+}
+
+export function getCachedHardwareStats() {
+  return latestStats;
 }
 
 export function sendDaemonCommand(cmd) {

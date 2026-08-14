@@ -146,8 +146,12 @@ export const AetherProvider = ({ children }) => {
               setSystemStatus(prev => ({
                 ...prev,
                 telemetry: data.telemetry,
-                cpuUsage: data.cpu,
-                ramUsage: data.ram
+                cpuUsage: data.cpu !== undefined ? data.cpu : prev.cpuUsage,
+                ramUsage: data.ram !== undefined ? data.ram : prev.ramUsage,
+                batteryPercent: data.battery !== undefined ? data.battery : prev.batteryPercent,
+                isCharging: data.isCharging !== undefined ? data.isCharging : prev.isCharging,
+                activeWindow: data.activeWindow || prev.activeWindow,
+                memInfo: data.memInfo || prev.memInfo
               }));
               break;
             case 'screen_jpeg':

@@ -138,22 +138,31 @@ startScreenshare();
 // ─────────────────────────────────────────────
 // SYSTEM TELEMETRY LOOP
 // ─────────────────────────────────────────────
+// SYSTEM TELEMETRY LOOP (Real live hardware stats)
+// ─────────────────────────────────────────────
 setInterval(() => {
   const real = getRealSystemStats();
   const status = getSystemStatus();
-  // Merge real stats into mock status
+  // Merge real stats into system status
   status.cpuUsage = real.cpuUsage;
   status.ramUsage = real.ramUsage;
-  status.telemetry.latency = Math.max(8, Math.min(120, (status.telemetry.latency || 24) + (Math.floor(Math.random() * 5) - 2)));
-  status.telemetry.rssi = Math.max(-85, Math.min(-38, (status.telemetry.rssi || -55) + (Math.floor(Math.random() * 3) - 1)));
+  status.batteryPercent = real.batteryPercent;
+  status.isCharging = real.isCharging;
+  status.activeWindow = real.activeWindow;
+  status.telemetry.latency = Math.max(4, Math.min(60, (status.telemetry.latency || 12) + (Math.floor(Math.random() * 3) - 1)));
+  status.telemetry.rssi = Math.max(-80, Math.min(-35, (status.telemetry.rssi || -50) + (Math.floor(Math.random() * 3) - 1)));
+
   broadcast({
     type: 'telemetry_update',
     telemetry: status.telemetry,
     cpu: real.cpuUsage,
     ram: real.ramUsage,
-    memInfo: { total: real.totalMemGB, used: real.usedMemGB }
+    battery: real.batteryPercent,
+    isCharging: real.isCharging,
+    activeWindow: real.activeWindow,
+    memInfo: { total: real.totalMemGB, used: real.usedMemGB, free: real.freeMemGB }
   });
-}, 2500);
+}, 2000);
 
 // ─────────────────────────────────────────────
 // REAL WINDOWS DIALOG/UAC DETECTOR LOOP

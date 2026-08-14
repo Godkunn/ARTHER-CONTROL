@@ -1,8 +1,10 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Threading;
+using System.Diagnostics;
 
 namespace AetherControl
 {
@@ -20,6 +22,12 @@ namespace AetherControl
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern int SetThreadExecutionState(int esFlags);
 
+        [DllImport("user32.dll")]
+        static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
         const int MOUSEEVENTF_MOVE = 0x0001;
         const int MOUSEEVENTF_LEFTDOWN = 0x0002;
         const int MOUSEEVENTF_LEFTUP = 0x0004;
@@ -30,6 +38,18 @@ namespace AetherControl
         const byte VK_MENU = 0x12; // ALT
         const byte VK_TAB = 0x09;  // TAB
         const uint KEYEVENTF_KEYUP = 0x0002;
+
+        static string GetActiveWindowTitle()
+        {
+            const int nChars = 256;
+            StringBuilder Buff = new StringBuilder(nChars);
+            IntPtr handle = GetForegroundWindow();
+            if (handle != IntPtr.Zero && GetWindowText(handle, Buff, nChars) > 0)
+            {
+                return Buff.ToString();
+            }
+            return "Desktop";
+        }
 
         static void Main(string[] args)
         {
@@ -158,6 +178,16 @@ namespace AetherControl
                         SetThreadExecutionState(unchecked((int)0x80000003));
                         mouse_event(MOUSEEVENTF_MOVE, 1, 1, 0, 0);
                         mouse_event(MOUSEEVENTF_MOVE, -1, -1, 0, 0);
+                    }
+                    else if (cmd == "get_stats")
+                    {
+                        // Real hardware battery & active window telemetry
+                        PowerStatus power = SystemInformation.PowerStatus;
+                        int batteryPercent = (int)Math.Round(power.BatteryLifePercent * 100);
+                        bool isCharging = power.PowerLineStatus == PowerLineStatus.Online;
+                        string activeTitle = GetActiveWindowTitle();
+
+                        Console.WriteLine(string.Format("STAT:{0}|{1}|{2}", batteryPercent, isCharging ? 1 : 0, activeTitle));
                     }
                 }
                 catch
