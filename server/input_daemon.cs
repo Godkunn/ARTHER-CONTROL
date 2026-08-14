@@ -40,6 +40,15 @@ namespace AetherControl
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern IntPtr OpenInputDesktop(uint dwFlags, bool fInherit, uint dwDesiredAccess);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool SetThreadDesktop(IntPtr hDesktop);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool CloseDesktop(IntPtr hDesktop);
+
         const int MOUSEEVENTF_MOVE = 0x0001;
         const int MOUSEEVENTF_LEFTDOWN = 0x0002;
         const int MOUSEEVENTF_LEFTUP = 0x0004;
@@ -271,27 +280,47 @@ namespace AetherControl
                     else if (cmd == "wake")
                     {
                         SetThreadExecutionState(unchecked((int)0x80000003));
-                        mouse_event(MOUSEEVENTF_MOVE, 10, 10, 0, 0);
-                        mouse_event(MOUSEEVENTF_MOVE, -10, -10, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, 20, 20, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, -20, -20, 0, 0);
                         keybd_event(0x11, 0, 0, 0); // Control
                         Thread.Sleep(20);
                         keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
                     }
                     else if (cmd == "unlock")
                     {
+                        IntPtr hInputDesk = OpenInputDesktop(0, false, 0x01FF);
+                        if (hInputDesk != IntPtr.Zero)
+                        {
+                            try { SetThreadDesktop(hInputDesk); } catch {}
+                        }
+
                         // 1. Wake hardware display and thread
                         SetThreadExecutionState(unchecked((int)0x80000003));
-                        mouse_event(MOUSEEVENTF_MOVE, 10, 10, 0, 0);
-                        mouse_event(MOUSEEVENTF_MOVE, -10, -10, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, 30, 30, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, -30, -30, 0, 0);
                         Thread.Sleep(80);
 
-                        // 2. Dismiss Lock Screen Wallpaper (Hardware Space Key)
-                        keybd_event(0x20, 0x39, 0, 0);
+                        // 2. Click screen center to focus Logon UI
+                        int midX = Screen.PrimaryScreen.Bounds.Width / 2;
+                        int midY = Screen.PrimaryScreen.Bounds.Height / 2;
+                        SetCursorPos(midX, midY);
+                        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+                        Thread.Sleep(30);
+                        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+                        Thread.Sleep(100);
+
+                        // 3. Dismiss Lock Screen Wallpaper (Hardware Space + Enter)
+                        keybd_event(0x20, 0x39, 0, 0); // Space
                         Thread.Sleep(40);
                         keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(150);
+
+                        keybd_event(0x0D, 0x1C, 0, 0); // Enter
+                        Thread.Sleep(40);
+                        keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
                         Thread.Sleep(350);
 
-                        // 3. Inject PIN if provided via Hardware Scan Codes
+                        // 4. Inject PIN if provided via Hardware Scan Codes
                         if (parts.Length >= 2)
                         {
                             string pin = parts[1];
@@ -306,17 +335,22 @@ namespace AetherControl
                                 {
                                     byte scan = (byte)MapVirtualKey(vk, 0);
                                     keybd_event(vk, scan, 0, 0);
-                                    Thread.Sleep(25);
+                                    Thread.Sleep(30);
                                     keybd_event(vk, scan, KEYEVENTF_KEYUP, 0);
                                     Thread.Sleep(40);
                                 }
                             }
 
-                            // 4. Press Enter
-                            Thread.Sleep(100);
+                            // 5. Press Enter to submit PIN
+                            Thread.Sleep(120);
                             keybd_event(0x0D, 0x1C, 0, 0);
                             Thread.Sleep(40);
                             keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
+                        }
+
+                        if (hInputDesk != IntPtr.Zero)
+                        {
+                            try { CloseDesktop(hInputDesk); } catch {}
                         }
                     }
                     else if (cmd == "toggle_taskmgr")

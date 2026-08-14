@@ -397,21 +397,48 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={() => executeCommand('BROWSER_NEW_TAB')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-blue/40 active:scale-95 transition"
-            title="New Browser Tab (Ctrl+T)"
+            onClick={() => executeCommand('SAVE')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
+            title="Save Active Document (Ctrl+S)"
           >
-            <Plus className="w-4 h-4 text-aurora-blue" />
-            <span className="text-[10px] font-mono text-titanium-300">Tab +</span>
+            <HardDrive className="w-4 h-4 text-aurora-cyan" />
+            <span className="text-[10px] font-mono text-titanium-300">Save</span>
           </button>
 
           <button
-            onClick={() => executeCommand('BROWSER_CLOSE_TAB')}
+            onClick={() => executeCommand('COPY')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-blue/40 active:scale-95 transition"
+            title="Copy Selection (Ctrl+C)"
+          >
+            <Copy className="w-4 h-4 text-aurora-blue" />
+            <span className="text-[10px] font-mono text-titanium-300">Copy</span>
+          </button>
+
+          <button
+            onClick={() => executeCommand('PASTE')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-emerald/40 active:scale-95 transition"
+            title="Paste Clipboard (Ctrl+V)"
+          >
+            <FileCode className="w-4 h-4 text-aurora-emerald" />
+            <span className="text-[10px] font-mono text-titanium-300">Paste</span>
+          </button>
+
+          <button
+            onClick={() => executeCommand('UNDO')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-amber/40 active:scale-95 transition"
+            title="Undo Action (Ctrl+Z)"
+          >
+            <RotateCcw className="w-4 h-4 text-aurora-amber" />
+            <span className="text-[10px] font-mono text-titanium-300">Undo</span>
+          </button>
+
+          <button
+            onClick={() => executeCommand('ESC')}
             className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-pink/40 active:scale-95 transition"
-            title="Close Active Tab (Ctrl+W)"
+            title="Press Escape Key"
           >
             <X className="w-4 h-4 text-aurora-pink" />
-            <span className="text-[10px] font-mono text-titanium-300">Tab -</span>
+            <span className="text-[10px] font-mono text-titanium-300">Esc</span>
           </button>
 
           <button

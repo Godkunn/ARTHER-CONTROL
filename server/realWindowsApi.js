@@ -386,11 +386,23 @@ export function realExecuteSystemCommand(cmd, payload = null) {
       case 'FULLSCREEN':
         nativeSendKeys('{F11}');
         break;
-      case 'BROWSER_NEW_TAB':
-        nativeSendKeys('^t');
+      case 'COPY':
+        nativeSendKeys('^c');
         break;
-      case 'BROWSER_CLOSE_TAB':
-        nativeSendKeys('^w');
+      case 'PASTE':
+        nativeSendKeys('^v');
+        break;
+      case 'UNDO':
+        nativeSendKeys('^z');
+        break;
+      case 'SAVE':
+        nativeSendKeys('^s');
+        break;
+      case 'ESC':
+        nativeSendKeys('{ESC}');
+        break;
+      case 'ENTER':
+        nativeSendKeys('{ENTER}');
         break;
       case 'OPEN_SETTINGS':
         exec('powershell -NoProfile -Command "Start-Process ms-settings:"', () => {});
