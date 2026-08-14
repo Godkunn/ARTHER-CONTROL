@@ -305,9 +305,9 @@ export const AetherProvider = ({ children }) => {
     addLog('Apps', `Focused: ${appName}`);
   }, [apiFetch, addLog]);
 
-  const executeCommand = useCallback(async (command, args = {}) => {
+  const executeCommand = useCallback(async (command, payload = {}) => {
     try {
-      await apiFetch('/api/command', { method: 'POST', body: JSON.stringify({ command, args }) });
+      await apiFetch('/api/command', { method: 'POST', body: JSON.stringify({ command, payload }) });
     } catch (_) {}
     addLog('Control', `Command: ${command}`);
   }, [apiFetch, addLog]);

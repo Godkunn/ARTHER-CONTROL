@@ -394,9 +394,8 @@ app.post('/api/clipboard', (req, res) => {
   res.json({ success: true, item });
 });
 
-// Quick system commands
 app.post('/api/command', (req, res) => {
-  const { command } = req.body;
+  const { command, payload } = req.body;
   const status = getSystemStatus();
   if (status.isKillSwitchActive) return res.status(403).json({ success: false, reason: 'Kill Switch Active' });
   let msg = `Command '${command}' executed`;
@@ -407,9 +406,10 @@ app.post('/api/command', (req, res) => {
     case 'SHOW_DESKTOP': focusWindow('Desktop'); break;
     case 'TASK_MANAGER': focusWindow('Task Manager'); break;
     case 'LOCK_PC': msg = 'PC Locked'; break;
+    case 'UNLOCK_PC': msg = 'PC Unlock Signal Sent'; break;
     case 'SCREENSHOT': screenshareActive = true; break;
   }
-  realExecuteSystemCommand(command);
+  realExecuteSystemCommand(command, payload);
   broadcast({ type: 'system_command', command, status: { volume: status.volume, isMuted: status.isMuted } });
   res.json({ success: true, message: msg });
 });

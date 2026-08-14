@@ -21,6 +21,8 @@ export default function Dashboard() {
 
   const [clipboardInput, setClipboardInput] = useState('');
   const [copiedSuccess, setCopiedSuccess] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockPin, setUnlockPin] = useState(() => localStorage.getItem('aether_pin') || '');
 
   const pendingApprovals = systemStatus.pendingApprovals || [];
   const topApproval = pendingApprovals[0];
@@ -282,11 +284,20 @@ export default function Dashboard() {
           </button>
 
           <button
+            onClick={() => setShowUnlockModal(true)}
+            className="p-2.5 rounded-xl bg-aurora-emerald/15 border border-aurora-emerald/40 text-center flex flex-col items-center justify-center space-y-1 hover:bg-aurora-emerald/25 active:scale-95 transition"
+            title="Wake & Unlock Laptop"
+          >
+            <Zap className="w-4 h-4 text-aurora-emerald" />
+            <span className="text-[10px] font-mono text-aurora-emerald font-bold">Unlock</span>
+          </button>
+
+          <button
             onClick={() => executeCommand('WAKE_DISPLAY')}
             className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 border-aurora-cyan/30 hover:border-aurora-cyan active:scale-95 transition"
             title="Wake Laptop Screen"
           >
-            <Zap className="w-4 h-4 text-aurora-cyan" />
+            <Monitor className="w-4 h-4 text-aurora-cyan" />
             <span className="text-[10px] font-mono text-aurora-cyan font-bold">Wake</span>
           </button>
 
@@ -300,6 +311,71 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* UNLOCK PC POPUP MODAL */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 animate-fadeIn">
+          <div className="glass-panel max-w-sm w-full p-5 rounded-3xl border border-aurora-emerald/40 space-y-4 relative shadow-glow-emerald">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="p-2 rounded-xl bg-aurora-emerald/20 border border-aurora-emerald/40 text-aurora-emerald">
+                  <Lock className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Unlock Workstation</h3>
+                  <p className="text-[10px] font-mono text-titanium-400">Wake display & type Windows PIN</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUnlockModal(false)}
+                className="text-titanium-400 hover:text-white p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-mono uppercase tracking-wider text-titanium-400">
+                Windows PIN / Password (Optional)
+              </label>
+              <input
+                type="password"
+                value={unlockPin}
+                onChange={(e) => {
+                  setUnlockPin(e.target.value);
+                  localStorage.setItem('aether_pin', e.target.value);
+                }}
+                placeholder="Enter PIN to auto-unlock..."
+                className="w-full bg-obsidian-950 border border-obsidian-750 rounded-xl px-3 py-2.5 text-center text-sm font-mono text-slate-100 tracking-widest focus:outline-none focus:border-aurora-emerald"
+              />
+              <p className="text-[9px] font-mono text-titanium-500 text-center">
+                PIN is stored only in your phone's local storage
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => {
+                  executeCommand('UNLOCK_PC', { pin: unlockPin });
+                  setShowUnlockModal(false);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition"
+              >
+                ⚡ Wake & Unlock
+              </button>
+              <button
+                onClick={() => {
+                  executeCommand('UNLOCK_PC', {});
+                  setShowUnlockModal(false);
+                }}
+                className="px-3 py-2.5 rounded-xl bg-obsidian-800 border border-obsidian-700 text-titanium-300 font-mono text-xs hover:text-white transition"
+              >
+                Wake Only
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RUNNING WINDOW MANAGER */}
       <div className="glass-panel p-4 rounded-2xl border border-obsidian-750 space-y-3">

@@ -339,7 +339,7 @@ export function runWingetInstall(packageId, onData, onDone) {
 // ─────────────────────────────────────────────
 // REAL SYSTEM COMMANDS & INPUT DISPATCH
 // ─────────────────────────────────────────────
-export function realExecuteSystemCommand(cmd) {
+export function realExecuteSystemCommand(cmd, payload = null) {
   try {
     switch (cmd) {
       case 'VOLUME_UP':
@@ -363,6 +363,25 @@ export function realExecuteSystemCommand(cmd) {
       case 'WAKE_DISPLAY':
         nativeWake();
         wakeDisplay();
+        break;
+      case 'UNLOCK_PC':
+        nativeWake();
+        wakeDisplay();
+        setTimeout(() => {
+          nativeSendKeys('{ESC}');
+          setTimeout(() => {
+            nativeSendKeys(' ');
+            if (payload && payload.pin) {
+              setTimeout(() => {
+                const escaped = String(payload.pin).replace(/([+^%~(){}[\]])/g, '{$1}');
+                nativeSendKeys(escaped);
+                setTimeout(() => {
+                  nativeSendKeys('{ENTER}');
+                }, 100);
+              }, 300);
+            }
+          }, 200);
+        }, 100);
         break;
     }
   } catch (_) {}
