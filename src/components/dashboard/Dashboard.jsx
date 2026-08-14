@@ -460,6 +460,15 @@ export default function Dashboard() {
           </button>
 
           <button
+            onClick={() => executeCommand('REOPEN_TAB')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
+            title="Reopen Closed Tab in Chrome/Edge (Ctrl+Shift+T)"
+          >
+            <RotateCcw className="w-4 h-4 text-aurora-cyan" />
+            <span className="text-[10px] font-mono text-titanium-300">Reopen</span>
+          </button>
+
+          <button
             onClick={() => executeCommand('OPEN_SETTINGS')}
             className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-purple/40 active:scale-95 transition"
             title="Open Windows Settings"

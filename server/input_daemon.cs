@@ -277,6 +277,34 @@ namespace AetherControl
                         string keys = line.Substring(5);
                         SendKeys.SendWait(keys);
                     }
+                    else if (cmd == "vol_up")
+                    {
+                        keybd_event(0xAF, 0, 0, 0); // VK_VOLUME_UP
+                        Thread.Sleep(20);
+                        keybd_event(0xAF, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "vol_down")
+                    {
+                        keybd_event(0xAE, 0, 0, 0); // VK_VOLUME_DOWN
+                        Thread.Sleep(20);
+                        keybd_event(0xAE, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "vol_mute")
+                    {
+                        keybd_event(0xAD, 0, 0, 0); // VK_VOLUME_MUTE
+                        Thread.Sleep(20);
+                        keybd_event(0xAD, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "reopen_tab")
+                    {
+                        keybd_event(0x11, 0, 0, 0); // Ctrl
+                        keybd_event(0x10, 0, 0, 0); // Shift
+                        keybd_event(0x54, 0, 0, 0); // T
+                        Thread.Sleep(30);
+                        keybd_event(0x54, 0, 2, 0);
+                        keybd_event(0x10, 0, 2, 0);
+                        keybd_event(0x11, 0, 2, 0);
+                    }
                     else if (cmd == "wake")
                     {
                         SetThreadExecutionState(unchecked((int)0x80000003));

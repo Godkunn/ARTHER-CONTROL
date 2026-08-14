@@ -146,6 +146,22 @@ export function nativeSnip() {
   return sendDaemonCommand('snip');
 }
 
+export function nativeVolumeUp() {
+  return sendDaemonCommand('vol_up');
+}
+
+export function nativeVolumeDown() {
+  return sendDaemonCommand('vol_down');
+}
+
+export function nativeVolumeMute() {
+  return sendDaemonCommand('vol_mute');
+}
+
+export function nativeReopenTab() {
+  return sendDaemonCommand('reopen_tab');
+}
+
 export function nativeMouseMove(px, py) {
   return sendDaemonCommand(`move ${px.toFixed(4)} ${py.toFixed(4)}`);
 }

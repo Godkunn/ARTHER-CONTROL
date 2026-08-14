@@ -29,7 +29,11 @@ import {
   nativeCaptureScreen,
   nativeUnlock,
   nativeToggleTaskmgr,
-  nativeSnip
+  nativeSnip,
+  nativeVolumeUp,
+  nativeVolumeDown,
+  nativeVolumeMute,
+  nativeReopenTab
 } from './nativeInputManager.js';
 
 // Initialize power keep-awake on startup
@@ -353,13 +357,16 @@ export function realExecuteSystemCommand(cmd, payload = null) {
   try {
     switch (cmd) {
       case 'VOLUME_UP':
-        nativeSendKeys('{VOLUME_UP}');
+        nativeVolumeUp();
         break;
       case 'VOLUME_DOWN':
-        nativeSendKeys('{VOLUME_DOWN}');
+        nativeVolumeDown();
         break;
       case 'TOGGLE_MUTE':
-        nativeSendKeys('{VOLUME_MUTE}');
+        nativeVolumeMute();
+        break;
+      case 'REOPEN_TAB':
+        nativeReopenTab();
         break;
       case 'SHOW_DESKTOP':
         exec(`powershell -NoProfile -Command "(New-Object -ComObject Shell.Application).ToggleDesktop()"`, () => {});
