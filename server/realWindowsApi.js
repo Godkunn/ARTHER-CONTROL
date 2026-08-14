@@ -26,7 +26,10 @@ import {
   getCachedClipboardText,
   nativeFocusProcess,
   nativeSetClipboard,
-  nativeCaptureScreen
+  nativeCaptureScreen,
+  nativeUnlock,
+  nativeToggleTaskmgr,
+  nativeSnip
 } from './nativeInputManager.js';
 
 // Initialize power keep-awake on startup
@@ -362,7 +365,7 @@ export function realExecuteSystemCommand(cmd, payload = null) {
         exec(`powershell -NoProfile -Command "(New-Object -ComObject Shell.Application).ToggleDesktop()"`, () => {});
         break;
       case 'TASK_MANAGER':
-        exec(`powershell -NoProfile -Command "Start-Process taskmgr.exe"`, () => {});
+        nativeToggleTaskmgr();
         break;
       case 'LOCK_PC':
         exec(`rundll32.exe user32.dll,LockWorkStation`, () => {});
@@ -374,21 +377,31 @@ export function realExecuteSystemCommand(cmd, payload = null) {
       case 'UNLOCK_PC':
         nativeWake();
         wakeDisplay();
-        setTimeout(() => {
-          nativeSendKeys('{ESC}');
-          setTimeout(() => {
-            nativeSendKeys(' ');
-            if (payload && payload.pin) {
-              setTimeout(() => {
-                const escaped = String(payload.pin).replace(/([+^%~(){}[\]])/g, '{$1}');
-                nativeSendKeys(escaped);
-                setTimeout(() => {
-                  nativeSendKeys('{ENTER}');
-                }, 100);
-              }, 300);
-            }
-          }, 200);
-        }, 100);
+        const pinCode = payload && (payload.pin || payload.code) ? String(payload.pin || payload.code) : '';
+        nativeUnlock(pinCode);
+        break;
+      case 'SNIP':
+        nativeSnip();
+        break;
+      case 'FULLSCREEN':
+        nativeSendKeys('{F11}');
+        break;
+      case 'BROWSER_NEW_TAB':
+        nativeSendKeys('^t');
+        break;
+      case 'BROWSER_CLOSE_TAB':
+        nativeSendKeys('^w');
+        break;
+      case 'OPEN_SETTINGS':
+        exec('powershell -NoProfile -Command "Start-Process ms-settings:"', () => {});
+        break;
+      case 'OPEN_EXPLORER':
+        exec('powershell -NoProfile -Command "Start-Process explorer.exe"', () => {});
+        break;
+      case 'OPEN_TERMINAL':
+        exec('powershell -NoProfile -Command "Start-Process wt.exe"', (err) => {
+          if (err) exec('powershell -NoProfile -Command "Start-Process powershell.exe"', () => {});
+        });
         break;
     }
   } catch (_) {}

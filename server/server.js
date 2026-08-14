@@ -576,21 +576,25 @@ app.use((req, res, next) => {
 server.listen(PORT, '0.0.0.0', () => {
   const lan = getLanInfo();
   const usbInfo = getUsbTetheringInfo(PORT);
+  const primaryIp = lan.interfaces[0]?.ip || '127.0.0.1';
   
-  console.log(`\n╔══════════════════════════════════════════════╗`);
-  console.log(`║       AETHER CONTROL — DAEMON ACTIVE         ║`);
-  console.log(`╠══════════════════════════════════════════════╣`);
-  console.log(`║  Local:    http://localhost:${PORT}`.padEnd(47) + `║`);
-  
-  // Print all discovered IP interfaces
+  console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
+  console.log(`║                  AETHER CONTROL v2.5.0                       ║`);
+  console.log(`║      Ultra-Low Latency Cockpit & Remote Orchestrator         ║`);
+  console.log(`╠══════════════════════════════════════════════════════════════╣`);
+  console.log(`║                                                              ║`);
+  console.log(`║  📱 OPEN ON YOUR PHONE BROWSER (TAP & GO):                   ║`);
+  console.log(`║  👉  http://${primaryIp}:${PORT}`.padEnd(63) + `║`);
+  console.log(`║                                                              ║`);
+  console.log(`╠──────────────────────────────────────────────────────────────╣`);
+  console.log(`║  📶 ACTIVE NETWORK INTERFACES:                               ║`);
   lan.interfaces.forEach((i, idx) => {
-    const label = idx === 0 ? 'LAN:' : 'Alt IP:';
-    console.log(`║  ${label.padEnd(9)} http://${i.ip}:${PORT}`.padEnd(47) + `║`);
+    const label = idx === 0 ? '• Hotspot/LAN:' : '• Alt IP:     ';
+    console.log(`║  ${label} http://${i.ip}:${PORT}`.padEnd(63) + `║`);
   });
-
-  console.log(`║  mDNS:     http://${(mdnsHost || 'unavailable') + ':' + PORT}`.padEnd(47) + `║`);
-  
-  const usbStr = usbInfo.serverUrl || `http://192.168.42.x:${PORT} (Not connected)`;
-  console.log(`║  USB:      ${usbStr}`.padEnd(47) + `║`);
-  console.log(`╚══════════════════════════════════════════════╝\n`);
+  const usbStr = usbInfo.serverUrl || `http://192.168.42.x:${PORT} (Plug USB & Enable Tethering)`;
+  console.log(`║  • USB Cable:   ${usbStr}`.padEnd(63) + `║`);
+  console.log(`║  • Laptop Local: http://localhost:${PORT}`.padEnd(63) + `║`);
+  console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
+  console.log(`[AETHER] Ready for connections. Keep this terminal open.\n`);
 });

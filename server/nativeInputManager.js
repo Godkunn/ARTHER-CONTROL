@@ -133,6 +133,19 @@ export function sendDaemonCommand(cmd) {
   return false;
 }
 
+export function nativeUnlock(pin = '') {
+  const cleanPin = String(pin || '').trim();
+  return sendDaemonCommand(cleanPin ? `unlock ${cleanPin}` : 'unlock');
+}
+
+export function nativeToggleTaskmgr() {
+  return sendDaemonCommand('toggle_taskmgr');
+}
+
+export function nativeSnip() {
+  return sendDaemonCommand('snip');
+}
+
 export function nativeMouseMove(px, py) {
   return sendDaemonCommand(`move ${px.toFixed(4)} ${py.toFixed(4)}`);
 }
@@ -149,12 +162,12 @@ export function nativeMouseUp(btn, px, py) {
   return sendDaemonCommand(`mouseup ${btn} ${px.toFixed(4)} ${py.toFixed(4)}`);
 }
 
-export function nativeMouseScroll(deltaY, px = -1, py = -1) {
-  return sendDaemonCommand(`scroll ${Math.round(deltaY)} ${px.toFixed(4)} ${py.toFixed(4)}`);
+export function nativeMouseScroll(delta, px, py) {
+  return sendDaemonCommand(`scroll ${delta} ${px >= 0 ? px.toFixed(4) : -1} ${py >= 0 ? py.toFixed(4) : -1}`);
 }
 
 export function nativeAltTab() {
-  return sendDaemonCommand(`alttab`);
+  return sendDaemonCommand('alttab');
 }
 
 export function nativeSendKeys(keys) {
@@ -162,7 +175,11 @@ export function nativeSendKeys(keys) {
 }
 
 export function nativeWake() {
-  return sendDaemonCommand(`wake`);
+  return sendDaemonCommand('wake');
+}
+
+export function isDaemonAlive() {
+  return !!daemonProcess;
 }
 
 startInputDaemon();

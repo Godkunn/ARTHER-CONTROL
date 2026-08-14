@@ -22,6 +22,9 @@ namespace AetherControl
         [DllImport("user32.dll")]
         static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
 
+        [DllImport("user32.dll")]
+        static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern int SetThreadExecutionState(int esFlags);
 
@@ -268,8 +271,75 @@ namespace AetherControl
                     else if (cmd == "wake")
                     {
                         SetThreadExecutionState(unchecked((int)0x80000003));
-                        mouse_event(MOUSEEVENTF_MOVE, 1, 1, 0, 0);
-                        mouse_event(MOUSEEVENTF_MOVE, -1, -1, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, 10, 10, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, -10, -10, 0, 0);
+                        keybd_event(0x11, 0, 0, 0); // Control
+                        Thread.Sleep(20);
+                        keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "unlock")
+                    {
+                        // 1. Wake hardware display and thread
+                        SetThreadExecutionState(unchecked((int)0x80000003));
+                        mouse_event(MOUSEEVENTF_MOVE, 10, 10, 0, 0);
+                        mouse_event(MOUSEEVENTF_MOVE, -10, -10, 0, 0);
+                        Thread.Sleep(80);
+
+                        // 2. Dismiss Lock Screen Wallpaper (Hardware Space Key)
+                        keybd_event(0x20, 0x39, 0, 0);
+                        Thread.Sleep(40);
+                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(350);
+
+                        // 3. Inject PIN if provided via Hardware Scan Codes
+                        if (parts.Length >= 2)
+                        {
+                            string pin = parts[1];
+                            foreach (char c in pin)
+                            {
+                                byte vk = 0;
+                                if (c >= '0' && c <= '9') vk = (byte)(0x30 + (c - '0'));
+                                else if (c >= 'a' && c <= 'z') vk = (byte)(0x41 + (c - 'a'));
+                                else if (c >= 'A' && c <= 'Z') vk = (byte)(0x41 + (c - 'A'));
+
+                                if (vk > 0)
+                                {
+                                    byte scan = (byte)MapVirtualKey(vk, 0);
+                                    keybd_event(vk, scan, 0, 0);
+                                    Thread.Sleep(25);
+                                    keybd_event(vk, scan, KEYEVENTF_KEYUP, 0);
+                                    Thread.Sleep(40);
+                                }
+                            }
+
+                            // 4. Press Enter
+                            Thread.Sleep(100);
+                            keybd_event(0x0D, 0x1C, 0, 0);
+                            Thread.Sleep(40);
+                            keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
+                        }
+                    }
+                    else if (cmd == "toggle_taskmgr")
+                    {
+                        bool found = false;
+                        foreach (Process p in Process.GetProcessesByName("Taskmgr"))
+                        {
+                            try { p.Kill(); found = true; } catch {}
+                        }
+                        if (!found)
+                        {
+                            try { Process.Start("taskmgr.exe"); } catch {}
+                        }
+                    }
+                    else if (cmd == "snip")
+                    {
+                        keybd_event(0x5B, 0, 0, 0); // LWIN
+                        keybd_event(0x10, 0, 0, 0); // SHIFT
+                        keybd_event(0x53, 0, 0, 0); // S
+                        Thread.Sleep(50);
+                        keybd_event(0x53, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x10, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x5B, 0, KEYEVENTF_KEYUP, 0);
                     }
                     else if (cmd == "cap")
                     {

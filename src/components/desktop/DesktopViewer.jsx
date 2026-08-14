@@ -135,12 +135,12 @@ export default function DesktopViewer() {
     const dx = Math.abs(e.clientX - pointerStartRef.current.x);
     const dy = Math.abs(e.clientY - pointerStartRef.current.y);
 
-    if (dx > 4 || dy > 4) {
+    if (dx > 8 || dy > 8) {
       pointerStartRef.current.moved = true;
       const coords = getCoords(e, imgRef.current);
       setCursorPos({ x: coords.x, y: coords.y, percentX: coords.percentX, percentY: coords.percentY });
 
-      // If currently dragging, stream mouse moves with Left Button held down
+      // If currently dragging or in trackpad mode, stream mouse moves smoothly
       if (pointerStartRef.current.isDragging || isCurrentlyDragging) {
         sendInputEvent({ type: 'mouse_move', x: coords.x, y: coords.y });
       } else if (trackpadMode) {
@@ -161,16 +161,24 @@ export default function DesktopViewer() {
       pointerStartRef.current.isDragging = false;
       setIsCurrentlyDragging(false);
       setTouchLog(`Released Selection → (${coords.x}, ${coords.y})`);
-    } else if (!pointerStartRef.current.moved && elapsed < 260) {
-      // Fast tap = Left Click
-      sendInputEvent({ type: 'mouse_click', x: coords.x, y: coords.y, button: 'left' });
-      showRipple(coords.percentX, coords.percentY, false);
-      setTouchLog(`Click → (${coords.x}, ${coords.y})`);
-    } else if (!pointerStartRef.current.moved && elapsed >= 500) {
-      // Very long stationary press without dragging = Right Click
-      sendInputEvent({ type: 'mouse_click', x: coords.x, y: coords.y, button: 'right' });
-      showRipple(coords.percentX, coords.percentY, true);
-      setTouchLog(`Right-Click → (${coords.x}, ${coords.y})`);
+    } else {
+      const dx = Math.abs(e.clientX - pointerStartRef.current.x);
+      const dy = Math.abs(e.clientY - pointerStartRef.current.y);
+
+      // If movement was small (< 18px), treat as 100% intentional click
+      if (dx < 18 && dy < 18) {
+        if (elapsed >= 550) {
+          // Long press = Right Click
+          sendInputEvent({ type: 'mouse_click', x: coords.x, y: coords.y, button: 'right' });
+          showRipple(coords.percentX, coords.percentY, true);
+          setTouchLog(`Right-Click → (${coords.x}, ${coords.y})`);
+        } else {
+          // Normal Tap = Left Click
+          sendInputEvent({ type: 'mouse_click', x: coords.x, y: coords.y, button: 'left' });
+          showRipple(coords.percentX, coords.percentY, false);
+          setTouchLog(`Click → (${coords.x}, ${coords.y})`);
+        }
+      }
     }
   };
 
