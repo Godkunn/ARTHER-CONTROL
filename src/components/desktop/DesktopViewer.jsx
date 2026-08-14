@@ -4,7 +4,7 @@ import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Maximize2, Minimize2, Keyboard, Zap, ZoomIn, ZoomOut,
   RotateCcw, Eye, EyeOff, Wifi, ChevronUp, ChevronDown, MousePointer,
-  Crosshair, Move, Hand
+  Crosshair, Move, Hand, Lock, Unlock, Compass
 } from 'lucide-react';
 import VirtualKeyboard from '../keyboard/VirtualKeyboard';
 
@@ -19,6 +19,9 @@ export default function DesktopViewer() {
   const imgRef = useRef(null);
   const containerRef = useRef(null);
   const [zoomScale, setZoomScale] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [zoomLocked, setZoomLocked] = useState(true); // Default true for rock-solid stability
+
   const [touchLog, setTouchLog] = useState('Tap to click • Hold & drag to select • 2-finger scroll');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [clickRipple, setClickRipple] = useState(null);
@@ -29,7 +32,9 @@ export default function DesktopViewer() {
   
   const holdTimer = useRef(null);
   const pointerStartRef = useRef({ time: 0, x: 0, y: 0, moved: false, isDragging: false });
-  const twoFingerStartRef = useRef({ y: 0, lastScrollTime: 0 });
+  const twoFingerStartRef = useRef({
+    y: 0, dist: 0, startScale: 1, startPan: { x: 0, y: 0 }, lastScrollTime: 0
+  });
   const didMountRef = useRef(false);
 
   // Auto-start screenshare once on first mount only
@@ -48,13 +53,28 @@ export default function DesktopViewer() {
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
 
+  const resetZoom = () => {
+    setZoomScale(1);
+    setPanOffset({ x: 0, y: 0 });
+    setTouchLog('Zoom reset to 1.0x');
+  };
+
   const getCoords = (e, el) => {
     if (!el) return { x: 960, y: 540, percentX: 0.5, percentY: 0.5 };
     const rect = el.getBoundingClientRect();
     const clientX = e.clientX ?? (e.touches && e.touches[0] ? e.touches[0].clientX : 0) ?? 0;
     const clientY = e.clientY ?? (e.touches && e.touches[0] ? e.touches[0].clientY : 0) ?? 0;
-    const relX = Math.max(0, Math.min(1, (clientX - rect.left) / (rect.width || 1)));
-    const relY = Math.max(0, Math.min(1, (clientY - rect.top) / (rect.height || 1)));
+
+    let relX, relY;
+    if (!zoomLocked && zoomScale > 1.0) {
+      // Adjusted for pinch-zoom and pan offset
+      relX = Math.max(0, Math.min(1, (clientX - rect.left) / (rect.width || 1)));
+      relY = Math.max(0, Math.min(1, (clientY - rect.top) / (rect.height || 1)));
+    } else {
+      relX = Math.max(0, Math.min(1, (clientX - rect.left) / (rect.width || 1)));
+      relY = Math.max(0, Math.min(1, (clientY - rect.top) / (rect.height || 1)));
+    }
+
     return {
       x: Math.round(relX * 1920) || 0,
       y: Math.round(relY * 1080) || 0,
@@ -182,29 +202,71 @@ export default function DesktopViewer() {
     }
   };
 
-  // Two-Finger Touch Scroll for Mobile
+  // Two-Finger Touch: Pinch-To-Zoom OR Document Scroll depending on Lock state
   const handleTouchStart = (e) => {
     if (e.touches.length === 2) {
       if (holdTimer.current) clearTimeout(holdTimer.current);
-      const avgY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      twoFingerStartRef.current = { y: avgY, lastScrollTime: Date.now() };
-      setTouchLog('2-Finger Scroll Active');
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const avgY = (touch1.clientY + touch2.clientY) / 2;
+      const dist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+
+      twoFingerStartRef.current = {
+        y: avgY,
+        dist,
+        startScale: zoomScale,
+        startPan: { ...panOffset },
+        lastScrollTime: Date.now()
+      };
+
+      if (!zoomLocked) {
+        setTouchLog('🔍 Pinch to Zoom & Pan active');
+      } else {
+        setTouchLog('📜 2-Finger Scroll Active');
+      }
     }
   };
 
   const handleTouchMove = (e) => {
     if (e.touches.length === 2) {
       e.preventDefault();
-      const now = Date.now();
-      if (now - twoFingerStartRef.current.lastScrollTime < 60) return;
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
 
-      const avgY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // PINCH-TO-ZOOM MODE (WHEN UNLOCKED)
+      if (!zoomLocked) {
+        const currentDist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        const factor = currentDist / (twoFingerStartRef.current.dist || 1);
+        const newScale = Math.min(4.0, Math.max(1.0, twoFingerStartRef.current.startScale * factor));
+        setZoomScale(newScale);
+
+        // Smooth 2-finger panning when zoomed in
+        if (newScale > 1.05) {
+          const avgX = (touch1.clientX + touch2.clientX) / 2;
+          const avgY = (touch1.clientY + touch2.clientY) / 2;
+          const diffX = avgX - ((touch1.clientX + touch2.clientX) / 2);
+          const diffY = avgY - twoFingerStartRef.current.y;
+          setPanOffset({
+            x: Math.max(-300, Math.min(300, twoFingerStartRef.current.startPan.x + (diffX * 0.5))),
+            y: Math.max(-300, Math.min(300, twoFingerStartRef.current.startPan.y + (diffY * 0.5)))
+          });
+        }
+        setTouchLog(`🔍 Zoom: ${newScale.toFixed(2)}x`);
+        return;
+      }
+
+      // FIXED MODE (DEFAULT): DOCUMENT SCROLLING
+      const now = Date.now();
+      if (now - twoFingerStartRef.current.lastScrollTime < 50) return;
+
+      const avgY = (touch1.clientY + touch2.clientY) / 2;
       const diffY = avgY - twoFingerStartRef.current.y;
 
       if (Math.abs(diffY) > 6) {
         const scrollDelta = diffY > 0 ? 160 : -160;
         handleScroll(scrollDelta);
-        twoFingerStartRef.current = { y: avgY, lastScrollTime: now };
+        twoFingerStartRef.current.y = avgY;
+        twoFingerStartRef.current.lastScrollTime = now;
       }
     }
   };
@@ -258,87 +320,86 @@ export default function DesktopViewer() {
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Screenshare Toggle */}
+          {/* Zoom Lock / Unlock Toggle Button */}
           <button
-            onClick={() => setScreenshareActive(!screenshareActive)}
-            className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1 transition border ${
-              screenshareActive
-                ? 'bg-aurora-cyan/20 border-aurora-cyan text-aurora-cyan'
-                : 'bg-obsidian-800 border-obsidian-700 text-titanium-400'
+            onClick={() => {
+              if (!zoomLocked) resetZoom();
+              setZoomLocked(!zoomLocked);
+            }}
+            className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1 transition ${
+              zoomLocked
+                ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-400 hover:text-slate-200'
+                : 'bg-aurora-amber/20 border border-aurora-amber/60 text-aurora-amber shadow-glow-amber'
             }`}
+            title={zoomLocked ? 'Screen is Locked 1:1 (Tap to Enable Pinch Zoom)' : 'Pinch Zoom is Active (Tap to Lock Screen)'}
           >
-            {screenshareActive ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-            {screenshareActive ? `LIVE ${screenFps > 0 ? screenFps + 'fps' : ''}` : 'OFF'}
+            {zoomLocked ? <Lock className="w-3 h-3 text-titanium-400" /> : <Unlock className="w-3 h-3 text-aurora-amber animate-pulse" />}
+            <span>{zoomLocked ? 'Fixed' : 'Pinch Zoom'}</span>
+          </button>
+
+          {zoomScale > 1.05 && (
+            <button
+              onClick={resetZoom}
+              className="px-2 py-1 rounded-lg bg-obsidian-900 border border-aurora-cyan/40 text-aurora-cyan text-[10px] font-mono font-bold"
+            >
+              1.0x
+            </button>
+          )}
+
+          {/* Toggle Drag-Select Mode */}
+          <button
+            onClick={() => {
+              setDragSelectMode(!dragSelectMode);
+              setTouchLog(!dragSelectMode ? '🖐 Drag-Select Mode Active' : 'Touch Click Mode Active');
+            }}
+            className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1 transition ${
+              dragSelectMode
+                ? 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
+                : 'bg-obsidian-900 border border-obsidian-750 text-titanium-400 hover:text-slate-200'
+            }`}
+            title="Toggle Drag & Select text mode"
+          >
+            <Hand className="w-3 h-3" />
+            <span className="hidden sm:inline">Select</span>
+          </button>
+
+          {/* Trackpad Mode Toggle */}
+          <button
+            onClick={() => setTrackpadMode(!trackpadMode)}
+            className={`p-1.5 rounded-lg transition ${
+              trackpadMode
+                ? 'bg-aurora-cyan/20 border border-aurora-cyan text-aurora-cyan shadow-glow-cyan'
+                : 'glass-card text-titanium-400 hover:text-slate-200'
+            }`}
+            title="Trackpad Mode"
+          >
+            <MousePointer className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Keyboard Toggle */}
+          <button
+            onClick={() => setShowKeyboardBar(!showKeyboardBar)}
+            className={`p-1.5 rounded-lg transition ${
+              showKeyboardBar
+                ? 'bg-aurora-cyan/20 border border-aurora-cyan text-aurora-cyan'
+                : 'glass-card text-titanium-400 hover:text-slate-200'
+            }`}
+            title="Toggle Keyboard"
+          >
+            <Keyboard className="w-3.5 h-3.5" />
           </button>
 
           {/* Quality Selector */}
           <select
             value={streamQuality}
             onChange={e => setStreamQuality(e.target.value)}
-            className="bg-obsidian-900 border border-obsidian-750 text-[10px] font-mono text-titanium-300 rounded-lg px-1.5 py-1 focus:outline-none"
+            className="bg-obsidian-900 border border-obsidian-750 text-titanium-300 text-[10px] font-mono rounded-lg px-1.5 py-1"
           >
-            <option value="1080p">1080p</option>
-            <option value="720p">720p</option>
-            <option value="540p">540p</option>
+            <option value="auto">Auto FPS</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
           </select>
-
-          {/* Drag & Select Toggle Button */}
-          <button
-            onClick={() => {
-              setDragSelectMode(!dragSelectMode);
-              setTouchLog(!dragSelectMode ? '🖐 Drag-Select Mode ON (Touch & drag to highlight text)' : 'Touch mode normal');
-            }}
-            className={`p-1.5 rounded-lg border transition text-[10px] ${
-              dragSelectMode ? 'bg-aurora-amber/20 border-aurora-amber text-aurora-amber shadow-glow-amber' : 'glass-card text-titanium-400'
-            }`}
-            title="Toggle Drag & Select Mode"
-          >
-            <Hand className="w-3 h-3" />
-          </button>
-
-          {/* Laser Cursor HUD Toggle */}
-          <button
-            onClick={() => setShowCursorOverlay(!showCursorOverlay)}
-            className={`p-1.5 rounded-lg border transition text-[10px] ${
-              showCursorOverlay ? 'bg-aurora-cyan/20 border-aurora-cyan text-aurora-cyan' : 'glass-card text-titanium-400'
-            }`}
-            title="Toggle Laser Cursor"
-          >
-            <Crosshair className="w-3 h-3" />
-          </button>
-
-          {/* Trackpad Mode Toggle */}
-          <button
-            onClick={() => setTrackpadMode(!trackpadMode)}
-            className={`p-1.5 rounded-lg border transition text-[10px] ${
-              trackpadMode ? 'bg-aurora-purple/20 border-aurora-purple text-aurora-purple' : 'glass-card text-titanium-400'
-            }`}
-            title="Trackpad Mode"
-          >
-            <MousePointer className="w-3 h-3" />
-          </button>
-
-          {/* Keyboard Toggle */}
-          <button
-            onClick={() => setShowKeyboardBar(!showKeyboardBar)}
-            className={`p-1.5 rounded-lg border transition ${
-              showKeyboardBar ? 'bg-aurora-emerald/20 border-aurora-emerald text-aurora-emerald' : 'glass-card text-titanium-400'
-            }`}
-            title="Virtual Keyboard"
-          >
-            <Keyboard className="w-3 h-3" />
-          </button>
-
-          {/* Zoom Controls */}
-          <button onClick={() => setZoomScale(s => Math.max(s - 0.25, 1))} className="p-1.5 rounded-lg glass-card text-titanium-400">
-            <ZoomOut className="w-3 h-3" />
-          </button>
-          <button onClick={() => setZoomScale(s => Math.min(s + 0.25, 2.5))} className="p-1.5 rounded-lg glass-card text-titanium-400">
-            <ZoomIn className="w-3 h-3" />
-          </button>
-          <button onClick={() => setZoomScale(1)} className="p-1.5 rounded-lg glass-card text-titanium-400">
-            <RotateCcw className="w-3 h-3" />
-          </button>
 
           {/* Fullscreen Button */}
           <button
@@ -346,7 +407,7 @@ export default function DesktopViewer() {
             className="p-1.5 rounded-lg bg-aurora-cyan/20 border border-aurora-cyan text-aurora-cyan hover:bg-aurora-cyan/30 transition"
             title="Fullscreen"
           >
-            <Maximize2 className="w-3 h-3" />
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
@@ -369,9 +430,9 @@ export default function DesktopViewer() {
           <div
             className="relative w-full h-full flex items-center justify-center touch-none select-none"
             style={{
-              transform: isFullscreen ? 'none' : `scale(${zoomScale})`,
-              transformOrigin: 'top left',
-              transition: 'transform 0.1s'
+              transform: zoomScale > 1.0 ? `scale(${zoomScale}) translate(${panOffset.x}px, ${panOffset.y}px)` : 'none',
+              transformOrigin: 'center center',
+              transition: 'transform 0.05s ease-out'
             }}
           >
             {/* Sized exactly to rendered image */}
@@ -450,205 +511,124 @@ export default function DesktopViewer() {
                 <span className="text-[11px] font-mono text-titanium-500">Screen stream paused</span>
                 <button
                   onClick={() => setScreenshareActive(true)}
-                  className="px-3.5 py-1.5 rounded-lg bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan text-[11px] font-mono font-bold hover:bg-aurora-cyan/30 transition"
+                  className="px-4 py-2 rounded-xl bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan text-xs font-mono font-bold hover:bg-aurora-cyan/30 transition flex items-center gap-1.5"
                 >
-                  Start Live Screen
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Resume Live Stream</span>
                 </button>
               </>
             )}
           </div>
         )}
 
-        {/* Floating Quick Scroll & Page Controls Bar (Right Edge) */}
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-40 bg-obsidian-950/85 backdrop-blur p-1 rounded-xl border border-obsidian-750 shadow-xl">
-          <button
-            onClick={() => handleScroll(160)}
-            className="p-2 rounded-lg bg-obsidian-850 hover:bg-aurora-cyan/20 border border-obsidian-700 text-titanium-200 active:scale-95 transition"
-            title="Scroll Laptop Up"
-          >
-            <ChevronUp className="w-4 h-4 text-aurora-cyan" />
-          </button>
-          
-          <button
-            onClick={() => handlePageScroll('up')}
-            className="px-1.5 py-1 rounded bg-obsidian-850 hover:bg-obsidian-750 text-[8px] font-mono font-bold text-titanium-400 active:text-white"
-            title="Page Up"
-          >
-            PgUp
-          </button>
-
-          <button
-            onClick={() => handlePageScroll('down')}
-            className="px-1.5 py-1 rounded bg-obsidian-850 hover:bg-obsidian-750 text-[8px] font-mono font-bold text-titanium-400 active:text-white"
-            title="Page Down"
-          >
-            PgDn
-          </button>
-
-          <button
-            onClick={() => handleScroll(-160)}
-            className="p-2 rounded-lg bg-obsidian-850 hover:bg-aurora-cyan/20 border border-obsidian-700 text-titanium-200 active:scale-95 transition"
-            title="Scroll Laptop Down"
-          >
-            <ChevronDown className="w-4 h-4 text-aurora-cyan" />
-          </button>
-        </div>
-
-        {/* Fullscreen HUD Strip */}
+        {/* Floating HUD Controls in Fullscreen */}
         {isFullscreen && (
-          <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-40 pointer-events-auto">
-            <div className="flex items-center gap-1.5 bg-black/80 backdrop-blur px-2 py-1 rounded-lg border border-obsidian-750">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[9px] font-mono text-aurora-cyan font-bold">FULLSCREEN LIVE</span>
-              <span className="text-[9px] font-mono text-titanium-400">({cursorPos.x}, {cursorPos.y})</span>
-            </div>
-
-            <div className="flex items-center gap-1 bg-black/80 backdrop-blur p-1 rounded-lg border border-obsidian-750">
-              <button
-                onClick={() => setDragSelectMode(!dragSelectMode)}
-                className={`p-1.5 rounded text-[10px] ${dragSelectMode ? 'bg-aurora-amber/20 text-aurora-amber' : 'text-titanium-400'}`}
-                title="Drag Select Mode"
-              >
-                <Hand className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setShowKeyboardBar(!showKeyboardBar)}
-                className={`p-1.5 rounded text-[10px] ${showKeyboardBar ? 'bg-aurora-emerald/20 text-aurora-emerald' : 'text-titanium-400'}`}
-              >
-                <Keyboard className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setShowCursorOverlay(!showCursorOverlay)}
-                className={`p-1.5 rounded text-[10px] ${showCursorOverlay ? 'bg-aurora-cyan/20 text-aurora-cyan' : 'text-titanium-400'}`}
-              >
-                <Crosshair className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={toggleFullscreen}
-                className="p-1.5 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30"
-                title="Exit Fullscreen"
-              >
-                <Minimize2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Live Badge in Normal Mode */}
-        {!isFullscreen && screenshareActive && currentScreenJpeg && (
-          <div className="absolute top-2 left-2 bg-black/75 backdrop-blur border border-aurora-cyan/30 text-aurora-cyan text-[9px] font-mono px-1.5 py-0.5 rounded flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            LIVE {screenFps > 0 && `• ${screenFps}fps`}
-          </div>
-        )}
-      </div>
-
-      {/* Quick Launch & System Controls */}
-      <div className="glass-panel p-2 rounded-xl border border-obsidian-750 flex flex-wrap items-center gap-1.5 justify-between">
-        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 flex-1">
-          <button
-            onClick={() => { executeCommand('WAKE_DISPLAY'); setTouchLog('Waking screen...'); }}
-            className="px-2 py-1 rounded-lg bg-aurora-amber/15 border border-aurora-amber/40 text-aurora-amber text-[9px] font-mono font-bold flex items-center gap-1 hover:bg-aurora-amber/25 transition shrink-0"
-          >
-            <Zap className="w-3 h-3" />
-            <span>Wake</span>
-          </button>
-
-          <button
-            onClick={() => { sendInputEvent({ type: 'hotkey', hotkey: '^{ESC}' }); setTouchLog('Sent Windows Start key'); }}
-            className="px-2 py-1 rounded-lg glass-card border border-obsidian-750 text-slate-200 text-[9px] font-mono flex items-center gap-1 hover:text-white transition shrink-0"
-          >
-            <span>🪟</span>
-            <span>Start</span>
-          </button>
-
-          <button
-            onClick={() => { executeCommand('SHOW_DESKTOP'); setTouchLog('Toggled Desktop'); }}
-            className="px-2 py-1 rounded-lg glass-card border border-obsidian-750 text-slate-200 text-[9px] font-mono flex items-center gap-1 hover:text-white transition shrink-0"
-          >
-            <span>🖥</span>
-            <span>Desktop</span>
-          </button>
-
-          <button
-            onClick={() => { sendInputEvent({ type: 'hotkey', hotkey: '%{TAB}' }); setTouchLog('Alt + Tab'); }}
-            className="px-2 py-1 rounded-lg bg-aurora-purple/15 border border-aurora-purple/40 text-aurora-purple text-[9px] font-mono font-bold flex items-center gap-1 shrink-0"
-          >
-            <Move className="w-3 h-3" />
-            <span>Switch App</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Precision Trackpad View (When Trackpad Mode is active) */}
-      {trackpadMode && (
-        <div className="glass-panel p-3 rounded-xl border border-aurora-purple/30 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono text-aurora-purple font-bold flex items-center gap-1">
-              <MousePointer className="w-3 h-3" />
-              <span>Precision Trackpad • Cursor at ({cursorPos.x}, {cursorPos.y})</span>
-            </span>
-            <button onClick={() => setTrackpadMode(false)} className="text-[9px] font-mono text-titanium-400">✕ Close</button>
-          </div>
-          <div
-            onMouseMove={e => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const px = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-              const py = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-              const x = Math.round(px * 1920);
-              const y = Math.round(py * 1080);
-              setCursorPos({ x, y, percentX: px, percentY: py });
-              sendInputEvent({ type: 'mouse_move', x, y });
-            }}
-            onTouchMove={e => {
-              e.preventDefault();
-              const rect = e.currentTarget.getBoundingClientRect();
-              const t = e.touches[0];
-              const px = Math.max(0, Math.min(1, (t.clientX - rect.left) / rect.width));
-              const py = Math.max(0, Math.min(1, (t.clientY - rect.top) / rect.height));
-              const x = Math.round(px * 1920);
-              const y = Math.round(py * 1080);
-              setCursorPos({ x, y, percentX: px, percentY: py });
-              sendInputEvent({ type: 'mouse_move', x, y });
-            }}
-            className="w-full h-28 bg-obsidian-950 border border-obsidian-750 rounded-lg flex items-center justify-center cursor-move text-[9px] text-titanium-400 font-mono select-none"
-          >
-            Glide finger here to move cursor smoothly
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'left' })}
-              className="py-2.5 rounded-lg bg-obsidian-800 border border-obsidian-700 text-slate-100 text-[10px] font-mono font-bold active:bg-aurora-cyan/30"
-            >
-              LEFT CLICK
-            </button>
+          <div className="absolute top-3 right-3 z-40 flex items-center gap-2 bg-black/75 backdrop-blur-md p-1.5 rounded-2xl border border-obsidian-750 shadow-2xl">
             <button
               onClick={() => {
-                sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'left' });
-                setTimeout(() => sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'left' }), 100);
+                if (!zoomLocked) resetZoom();
+                setZoomLocked(!zoomLocked);
               }}
-              className="py-2.5 rounded-lg bg-obsidian-800 border border-obsidian-700 text-aurora-cyan text-[10px] font-mono font-bold active:bg-aurora-cyan/30"
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition ${
+                zoomLocked
+                  ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
+                  : 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
+              }`}
             >
-              DOUBLE CLICK
+              {zoomLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5 text-aurora-amber animate-pulse" />}
+              <span>{zoomLocked ? 'Fixed' : 'Pinch Zoom'}</span>
             </button>
+
+            {zoomScale > 1.05 && (
+              <button
+                onClick={resetZoom}
+                className="px-2.5 py-1.5 rounded-xl bg-obsidian-900 border border-aurora-cyan/50 text-aurora-cyan text-xs font-mono font-bold"
+              >
+                1.0x Reset
+              </button>
+            )}
+
             <button
-              onClick={() => sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'right' })}
-              className="py-2.5 rounded-lg bg-obsidian-800 border border-obsidian-700 text-slate-100 text-[10px] font-mono font-bold active:bg-aurora-purple/30"
+              onClick={() => setDragSelectMode(!dragSelectMode)}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition ${
+                dragSelectMode
+                  ? 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
+                  : 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
+              }`}
             >
-              RIGHT CLICK
+              <Hand className="w-3.5 h-3.5" />
+              <span>{dragSelectMode ? 'Selecting' : 'Select'}</span>
+            </button>
+
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white"
+              title="Exit Fullscreen"
+            >
+              <Minimize2 className="w-4 h-4" />
             </button>
           </div>
+        )}
+
+        {/* Live Touch / Action Status Bar */}
+        <div className="absolute bottom-2 left-2 right-2 z-30 pointer-events-none flex items-center justify-between">
+          <span className="text-[9px] font-mono px-2 py-1 rounded bg-black/80 backdrop-blur border border-obsidian-750 text-titanium-300 shadow">
+            {touchLog}
+          </span>
+          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/80 backdrop-blur border border-obsidian-750 text-aurora-cyan">
+            {screenFps || 0} FPS
+          </span>
+        </div>
+      </div>
+
+      {/* Floating Keyboard Drawer */}
+      {showKeyboardBar && (
+        <div className="animate-fadeIn">
+          <VirtualKeyboard />
         </div>
       )}
 
-      {showKeyboardBar && <VirtualKeyboard />}
+      {/* Quick Action Bottom Strip */}
+      <div className="glass-panel p-2 rounded-xl border border-obsidian-750 flex items-center justify-between gap-1 text-xs font-mono">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handlePageScroll('up')}
+            className="p-1.5 rounded-lg glass-card text-titanium-300 hover:text-white flex items-center gap-1"
+            title="Page Up"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+            <span className="text-[10px] hidden sm:inline">PgUp</span>
+          </button>
+          <button
+            onClick={() => handlePageScroll('down')}
+            className="p-1.5 rounded-lg glass-card text-titanium-300 hover:text-white flex items-center gap-1"
+            title="Page Down"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+            <span className="text-[10px] hidden sm:inline">PgDn</span>
+          </button>
+        </div>
 
-      {/* Touch Interaction Status Bar */}
-      <div className="bg-obsidian-900/60 px-3 py-1.5 rounded-lg border border-obsidian-800 flex items-center justify-between">
-        <span className="text-[9px] font-mono text-titanium-400 truncate max-w-[240px]">{touchLog}</span>
-        <span className={`text-[9px] font-mono ${connected ? 'text-aurora-emerald' : 'text-red-400'}`}>
-          {connected ? '● Connected' : '○ Reconnecting...'}
-        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => sendInputEvent({ type: 'hotkey', hotkey: 'Alt+Tab' })}
+            className="px-2 py-1 rounded-lg glass-card text-titanium-300 hover:text-white text-[10px]"
+          >
+            Alt+Tab
+          </button>
+          <button
+            onClick={() => executeCommand('SHOW_DESKTOP')}
+            className="px-2 py-1 rounded-lg glass-card text-titanium-300 hover:text-white text-[10px]"
+          >
+            Win+D
+          </button>
+          <button
+            onClick={() => executeCommand('LOCK_PC')}
+            className="px-2 py-1 rounded-lg glass-card text-titanium-300 hover:text-white text-[10px]"
+          >
+            Lock
+          </button>
+        </div>
       </div>
     </div>
   );
