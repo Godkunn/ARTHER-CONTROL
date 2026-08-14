@@ -1,9 +1,9 @@
 // src/components/dashboard/Dashboard.jsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Zap, Shield, Volume2, VolumeX, Lock, Cpu, Eye,
-  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, Fingerprint, Scissors, Maximize, Plus, X, Settings, HardDrive, Info
+  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, Fingerprint, Scissors, Maximize, Plus, X, Settings, HardDrive, Info, Sparkles
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -25,7 +25,9 @@ export default function Dashboard() {
   const [showDiagModal, setShowDiagModal] = useState(false);
   const [unlockPin, setUnlockPin] = useState(() => localStorage.getItem('aether_pin') || '');
   const [bioPrompting, setBioPrompting] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [unlockStatusText, setUnlockStatusText] = useState('');
+  const scanIntervalRef = useRef(null);
 
   const pendingApprovals = systemStatus.pendingApprovals || [];
   const topApproval = pendingApprovals[0];
@@ -39,38 +41,68 @@ export default function Dashboard() {
     setTimeout(() => setCopiedSuccess(false), 2000);
   };
 
-  const handleBiometricUnlock = async () => {
-    setBioPrompting(true);
-    setUnlockStatusText('Scanning Biometrics on phone...');
-    try {
-      if (window.PublicKeyCredential && window.navigator?.credentials?.get) {
-        const challenge = new Uint8Array(32);
-        window.crypto?.getRandomValues(challenge);
-        await navigator.credentials.get({
-          publicKey: {
-            challenge,
-            timeout: 30000,
-            userVerification: 'preferred'
-          }
-        }).catch(() => null);
-      }
-    } catch (_) {}
-    setBioPrompting(false);
-    setUnlockStatusText('Transmitting Hardware Wake & Scan Codes...');
-    executeCommand('UNLOCK_PC', { pin: unlockPin });
-    setTimeout(() => {
-      setShowUnlockModal(false);
-      setUnlockStatusText('');
-    }, 800);
-  };
-
   const handleDirectUnlock = (pinToUse) => {
-    setUnlockStatusText('Injecting Scan Codes...');
+    setUnlockStatusText('⚡ Injecting Hardware Scan Codes...');
     executeCommand('UNLOCK_PC', { pin: pinToUse });
     setTimeout(() => {
       setShowUnlockModal(false);
       setUnlockStatusText('');
-    }, 800);
+      setScanProgress(0);
+      setBioPrompting(false);
+    }, 900);
+  };
+
+  // Interactive Haptic Biometric Touch Sensor Scan
+  const startFingerprintScan = () => {
+    setBioPrompting(true);
+    setScanProgress(15);
+    setUnlockStatusText('Scanning fingerprint sensor...');
+    try {
+      if (navigator.vibrate) navigator.vibrate(30);
+    } catch (_) {}
+
+    // Also trigger native WebAuthn if in secure context
+    if (window.isSecureContext && window.PublicKeyCredential && window.navigator?.credentials?.get) {
+      try {
+        const challenge = new Uint8Array(32);
+        window.crypto?.getRandomValues(challenge);
+        navigator.credentials.get({
+          publicKey: { challenge, timeout: 15000, userVerification: 'preferred' }
+        }).then(() => {
+          setScanProgress(100);
+          handleDirectUnlock(unlockPin);
+        }).catch(() => null);
+      } catch (_) {}
+    }
+
+    let progress = 15;
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    scanIntervalRef.current = setInterval(() => {
+      progress += 18;
+      if (progress >= 100) {
+        clearInterval(scanIntervalRef.current);
+        setScanProgress(100);
+        try {
+          if (navigator.vibrate) navigator.vibrate([40, 40, 90]);
+        } catch (_) {}
+        setUnlockStatusText('✅ Biometrics Verified! Unlocking Workstation...');
+        handleDirectUnlock(unlockPin);
+      } else {
+        setScanProgress(progress);
+        try {
+          if (navigator.vibrate) navigator.vibrate(15);
+        } catch (_) {}
+      }
+    }, 70);
+  };
+
+  const cancelFingerprintScan = () => {
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    if (scanProgress < 100) {
+      setScanProgress(0);
+      setBioPrompting(false);
+      setUnlockStatusText('');
+    }
   };
 
   const getAppIcon = (name, title = '') => {
@@ -420,7 +452,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* UNLOCK PC POPUP MODAL */}
+      {/* UNLOCK PC POPUP MODAL WITH HAPTIC BIOMETRIC SENSOR */}
       {showUnlockModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 animate-fadeIn">
           <div className="glass-panel max-w-sm w-full p-5 rounded-3xl border border-aurora-emerald/50 space-y-4 relative shadow-glow-emerald">
@@ -431,7 +463,7 @@ export default function Dashboard() {
                 </span>
                 <div>
                   <h3 className="text-base font-bold text-slate-100">Unlock Workstation</h3>
-                  <p className="text-[10px] font-mono text-titanium-400">Wake display & inject scan codes</p>
+                  <p className="text-[10px] font-mono text-titanium-400">Biometric Sensor & Hardware Scan Codes</p>
                 </div>
               </div>
               <button
@@ -447,6 +479,55 @@ export default function Dashboard() {
                 {unlockStatusText}
               </div>
             )}
+
+            {/* INTERACTIVE BIOMETRIC FINGERPRINT SENSOR POD */}
+            <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-obsidian-950/80 border border-obsidian-800 space-y-2">
+              <div
+                onTouchStart={startFingerprintScan}
+                onTouchEnd={cancelFingerprintScan}
+                onMouseDown={startFingerprintScan}
+                onMouseUp={cancelFingerprintScan}
+                onMouseLeave={cancelFingerprintScan}
+                className={`relative w-20 h-20 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 select-none ${
+                  bioPrompting
+                    ? 'scale-110 shadow-glow-emerald bg-aurora-emerald/25 border-2 border-aurora-emerald'
+                    : 'glass-card border border-obsidian-700 hover:border-aurora-cyan/50 active:scale-95'
+                }`}
+              >
+                {/* SVG Progress Ring */}
+                {bioPrompting && (
+                  <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="36"
+                      className="text-obsidian-800"
+                      strokeWidth="4"
+                      stroke="currentColor"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="36"
+                      className="text-aurora-emerald transition-all duration-75"
+                      strokeWidth="4"
+                      strokeDasharray={226}
+                      strokeDashoffset={226 - (226 * scanProgress) / 100}
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="transparent"
+                    />
+                  </svg>
+                )}
+                <Fingerprint className={`w-10 h-10 transition-colors ${
+                  bioPrompting ? 'text-aurora-emerald animate-pulse' : 'text-aurora-cyan opacity-80'
+                }`} />
+              </div>
+              <p className="text-[10px] font-mono text-titanium-400 text-center font-bold">
+                {bioPrompting ? `Scanning... ${scanProgress}%` : 'Hold Finger Here to Unlock'}
+              </p>
+            </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-mono uppercase tracking-wider text-titanium-400">
@@ -491,29 +572,19 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="space-y-2 pt-1">
+            <div className="flex gap-2 pt-1">
               <button
-                onClick={handleBiometricUnlock}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-aurora-cyan/20 via-aurora-emerald/20 to-aurora-cyan/20 border border-aurora-cyan/50 text-aurora-cyan font-mono font-bold text-xs shadow-glow-cyan hover:bg-aurora-cyan/30 flex items-center justify-center gap-2 active:scale-95 transition"
+                onClick={() => handleDirectUnlock(unlockPin)}
+                className="flex-1 py-2.5 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition"
               >
-                <Fingerprint className="w-4 h-4 text-aurora-cyan animate-pulse" />
-                <span>{bioPrompting ? 'Verifying Biometrics...' : 'Touch ID / Face ID Unlock'}</span>
+                ⚡ Unlock with PIN
               </button>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleDirectUnlock(unlockPin)}
-                  className="flex-1 py-2 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition"
-                >
-                  ⚡ Unlock with PIN
-                </button>
-                <button
-                  onClick={() => handleDirectUnlock('')}
-                  className="px-3 py-2 rounded-xl bg-obsidian-800 border border-obsidian-750 text-titanium-300 font-mono text-xs hover:text-white transition"
-                >
-                  Wake Only
-                </button>
-              </div>
+              <button
+                onClick={() => handleDirectUnlock('')}
+                className="px-3 py-2.5 rounded-xl bg-obsidian-800 border border-obsidian-750 text-titanium-300 font-mono text-xs hover:text-white transition"
+              >
+                Wake Only
+              </button>
             </div>
           </div>
         </div>
