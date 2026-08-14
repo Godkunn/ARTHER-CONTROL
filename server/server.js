@@ -190,7 +190,8 @@ setInterval(() => {
   if (clients.size === 0) return;
   const status = getSystemStatus();
   const activeTitle = status.activeWindow || '';
-  if (activeTitle.match(/User Account Control|Administrator|Allow|Confirm|Permission|consent|elevation|Antigravity/i)) {
+  // Only match specific Windows security/consent dialogs to prevent spam
+  if (activeTitle.match(/User Account Control|consent\.exe|Credential UI|Windows Security/i)) {
     const dialogId = `dlg-${activeTitle.substring(0, 20)}`;
     if (!detectedDialogIds.has(dialogId)) {
       detectedDialogIds.add(dialogId);
