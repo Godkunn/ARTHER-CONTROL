@@ -14,6 +14,9 @@ namespace AetherControl
     class InputDaemon
     {
         [DllImport("user32.dll")]
+        static extern bool SetProcessDPIAware();
+
+        [DllImport("user32.dll")]
         static extern bool SetCursorPos(int X, int Y);
 
         [DllImport("user32.dll")]
@@ -89,7 +92,7 @@ namespace AetherControl
                 {
                     using (Graphics g = Graphics.FromImage(bmp))
                     {
-                        g.CopyFromScreen(0, 0, 0, 0, bounds.Size, CopyPixelOperation.SourceCopy);
+                        g.CopyFromScreen(bounds.X, bounds.Y, 0, 0, bounds.Size, CopyPixelOperation.SourceCopy);
                     }
 
                     using (MemoryStream ms = new MemoryStream(64 * 1024))
@@ -156,6 +159,7 @@ namespace AetherControl
         [STAThread]
         static void Main(string[] args)
         {
+            try { SetProcessDPIAware(); } catch {}
             // Keep display & system awake
             SetThreadExecutionState(unchecked((int)0x80000003));
             InitJpegCodec(65L);

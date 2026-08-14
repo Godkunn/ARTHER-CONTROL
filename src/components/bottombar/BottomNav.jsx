@@ -18,7 +18,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-obsidian-750 px-1 py-1 flex items-center justify-around shadow-2xl">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#090d16] border-t border-obsidian-750 px-1 py-1.5 flex items-center justify-around shadow-2xl">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = activeTab === item.id;
@@ -27,12 +27,12 @@ export default function BottomNav() {
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id)}
-            className={`relative flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition-all duration-150 ${
-              isActive ? 'text-aurora-cyan scale-105' : 'text-titanium-500 hover:text-slate-200'
+            className={`relative flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all duration-150 ${
+              isActive ? 'text-aurora-cyan scale-105' : 'text-titanium-400 hover:text-slate-200'
             }`}
           >
             {isActive && (
-              <span className="absolute inset-0 bg-aurora-cyan/10 rounded-xl border border-aurora-cyan/20" />
+              <span className="absolute inset-0 bg-aurora-cyan/15 rounded-xl border border-aurora-cyan/30" />
             )}
             <div className="relative">
               <Icon className={`w-4 h-4 mb-0.5 ${isActive ? 'text-aurora-cyan' : ''}`} />
@@ -42,7 +42,7 @@ export default function BottomNav() {
                 </span>
               )}
             </div>
-            <span className={`text-[8px] font-mono ${isActive ? 'font-bold text-aurora-cyan' : ''}`}>
+            <span className={`text-[9px] font-mono ${isActive ? 'font-bold text-aurora-cyan' : ''}`}>
               {item.label}
             </span>
           </button>
@@ -51,4 +51,3 @@ export default function BottomNav() {
     </nav>
   );
 }
-

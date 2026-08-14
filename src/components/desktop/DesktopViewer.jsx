@@ -4,7 +4,7 @@ import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Maximize2, Minimize2, Keyboard, Zap, ZoomIn, ZoomOut,
   RotateCcw, Eye, EyeOff, Wifi, ChevronUp, ChevronDown, MousePointer,
-  Crosshair, Move, Hand, Lock, Unlock, Compass
+  Crosshair, Move, Hand, Lock, Unlock, Mouse
 } from 'lucide-react';
 import VirtualKeyboard from '../keyboard/VirtualKeyboard';
 
@@ -22,7 +22,7 @@ export default function DesktopViewer() {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [zoomLocked, setZoomLocked] = useState(true); // Default true for rock-solid stability
 
-  const [touchLog, setTouchLog] = useState('Tap to click • Hold & drag to select • 2-finger scroll');
+  const [touchLog, setTouchLog] = useState('Tap / buttons for clicks • 2-finger scroll • Pinch zoom');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [clickRipple, setClickRipple] = useState(null);
   const [showCursorOverlay, setShowCursorOverlay] = useState(true);
@@ -67,7 +67,6 @@ export default function DesktopViewer() {
 
     let relX, relY;
     if (!zoomLocked && zoomScale > 1.0) {
-      // Adjusted for pinch-zoom and pan offset
       relX = Math.max(0, Math.min(1, (clientX - rect.left) / (rect.width || 1)));
       relY = Math.max(0, Math.min(1, (clientY - rect.top) / (rect.height || 1)));
     } else {
@@ -86,6 +85,28 @@ export default function DesktopViewer() {
   const showRipple = (percentX, percentY, isRight = false) => {
     setClickRipple({ percentX, percentY, isRight, id: Date.now() });
     setTimeout(() => setClickRipple(null), 500);
+  };
+
+  // Dedicated Hardware Mouse Click Handlers
+  const handleExplicitLeftClick = () => {
+    sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'left' });
+    showRipple(cursorPos.percentX, cursorPos.percentY, false);
+    setTouchLog(`🖱️ Left Click → (${cursorPos.x}, ${cursorPos.y})`);
+  };
+
+  const handleExplicitRightClick = () => {
+    sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'right' });
+    showRipple(cursorPos.percentX, cursorPos.percentY, true);
+    setTouchLog(`🖱️ Right Click → (${cursorPos.x}, ${cursorPos.y})`);
+  };
+
+  const handleExplicitDoubleClick = () => {
+    sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'left' });
+    setTimeout(() => {
+      sendInputEvent({ type: 'mouse_click', x: cursorPos.x, y: cursorPos.y, button: 'left' });
+    }, 70);
+    showRipple(cursorPos.percentX, cursorPos.percentY, false);
+    setTouchLog(`⚡ Double Click → (${cursorPos.x}, ${cursorPos.y})`);
   };
 
   const handleScroll = useCallback((deltaY) => {
@@ -110,7 +131,7 @@ export default function DesktopViewer() {
     setTouchLog(direction === 'up' ? 'Page Up' : 'Page Down');
   };
 
-  // Touch & Pointer handlers with Hold & Drag Selection
+  // Touch & Pointer handlers
   const handlePointerDown = (e) => {
     if (!imgRef.current) return;
     if (e.pointerType === 'touch' && e.isPrimary === false) return;
@@ -128,7 +149,6 @@ export default function DesktopViewer() {
 
     if (holdTimer.current) clearTimeout(holdTimer.current);
 
-    // If Drag-Select mode is permanently ON, start mouse_down immediately
     if (dragSelectMode) {
       pointerStartRef.current.isDragging = true;
       setIsCurrentlyDragging(true);
@@ -137,7 +157,6 @@ export default function DesktopViewer() {
       return;
     }
 
-    // Hold for 260ms -> Activates Drag & Select
     holdTimer.current = setTimeout(() => {
       if (imgRef.current) {
         pointerStartRef.current.isDragging = true;
@@ -160,7 +179,6 @@ export default function DesktopViewer() {
       const coords = getCoords(e, imgRef.current);
       setCursorPos({ x: coords.x, y: coords.y, percentX: coords.percentX, percentY: coords.percentY });
 
-      // If currently dragging or in trackpad mode, stream mouse moves smoothly
       if (pointerStartRef.current.isDragging || isCurrentlyDragging) {
         sendInputEvent({ type: 'mouse_move', x: coords.x, y: coords.y });
       } else if (trackpadMode) {
@@ -176,7 +194,6 @@ export default function DesktopViewer() {
     setCursorPos({ x: coords.x, y: coords.y, percentX: coords.percentX, percentY: coords.percentY });
 
     if (pointerStartRef.current.isDragging || isCurrentlyDragging) {
-      // Release held mouse button
       sendInputEvent({ type: 'mouse_up', x: coords.x, y: coords.y, button: 'left' });
       pointerStartRef.current.isDragging = false;
       setIsCurrentlyDragging(false);
@@ -185,15 +202,12 @@ export default function DesktopViewer() {
       const dx = Math.abs(e.clientX - pointerStartRef.current.x);
       const dy = Math.abs(e.clientY - pointerStartRef.current.y);
 
-      // If movement was small (< 18px), treat as 100% intentional click
       if (dx < 18 && dy < 18) {
         if (elapsed >= 550) {
-          // Long press = Right Click
           sendInputEvent({ type: 'mouse_click', x: coords.x, y: coords.y, button: 'right' });
           showRipple(coords.percentX, coords.percentY, true);
           setTouchLog(`Right-Click → (${coords.x}, ${coords.y})`);
         } else {
-          // Normal Tap = Left Click
           sendInputEvent({ type: 'mouse_click', x: coords.x, y: coords.y, button: 'left' });
           showRipple(coords.percentX, coords.percentY, false);
           setTouchLog(`Click → (${coords.x}, ${coords.y})`);
@@ -202,7 +216,7 @@ export default function DesktopViewer() {
     }
   };
 
-  // Two-Finger Touch: Pinch-To-Zoom OR Document Scroll depending on Lock state
+  // Two-Finger Pinch Zoom & Scroll
   const handleTouchStart = (e) => {
     if (e.touches.length === 2) {
       if (holdTimer.current) clearTimeout(holdTimer.current);
@@ -233,21 +247,17 @@ export default function DesktopViewer() {
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
 
-      // PINCH-TO-ZOOM MODE (WHEN UNLOCKED)
       if (!zoomLocked) {
         const currentDist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
         const factor = currentDist / (twoFingerStartRef.current.dist || 1);
         const newScale = Math.min(4.0, Math.max(1.0, twoFingerStartRef.current.startScale * factor));
         setZoomScale(newScale);
 
-        // Smooth 2-finger panning when zoomed in
         if (newScale > 1.05) {
-          const avgX = (touch1.clientX + touch2.clientX) / 2;
           const avgY = (touch1.clientY + touch2.clientY) / 2;
-          const diffX = avgX - ((touch1.clientX + touch2.clientX) / 2);
           const diffY = avgY - twoFingerStartRef.current.y;
           setPanOffset({
-            x: Math.max(-300, Math.min(300, twoFingerStartRef.current.startPan.x + (diffX * 0.5))),
+            x: Math.max(-300, Math.min(300, twoFingerStartRef.current.startPan.x)),
             y: Math.max(-300, Math.min(300, twoFingerStartRef.current.startPan.y + (diffY * 0.5)))
           });
         }
@@ -255,7 +265,6 @@ export default function DesktopViewer() {
         return;
       }
 
-      // FIXED MODE (DEFAULT): DOCUMENT SCROLLING
       const now = Date.now();
       if (now - twoFingerStartRef.current.lastScrollTime < 50) return;
 
@@ -304,7 +313,7 @@ export default function DesktopViewer() {
   const lanIp = lanInfo?.interfaces?.[0]?.ip;
 
   return (
-    <div className="p-2 max-w-5xl mx-auto space-y-2 pb-24 select-none touch-none overscroll-none">
+    <div className="p-2 max-w-5xl mx-auto space-y-2 pb-36 select-none touch-none overscroll-none">
       {/* Top Control Bar */}
       <div className="glass-panel px-3 py-2 rounded-xl border border-obsidian-750 flex flex-wrap items-center justify-between gap-1.5">
         <div className="flex items-center gap-2 min-w-0">
@@ -320,7 +329,7 @@ export default function DesktopViewer() {
         </div>
 
         <div className="flex items-center gap-1">
-          {/* Zoom Lock / Unlock Toggle Button */}
+          {/* Zoom Lock / Unlock Toggle */}
           <button
             onClick={() => {
               if (!zoomLocked) resetZoom();
@@ -331,10 +340,10 @@ export default function DesktopViewer() {
                 ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-400 hover:text-slate-200'
                 : 'bg-aurora-amber/20 border border-aurora-amber/60 text-aurora-amber shadow-glow-amber'
             }`}
-            title={zoomLocked ? 'Screen is Locked 1:1 (Tap to Enable Pinch Zoom)' : 'Pinch Zoom is Active (Tap to Lock Screen)'}
+            title={zoomLocked ? 'Screen is Locked 1:1' : 'Pinch Zoom is Active'}
           >
             {zoomLocked ? <Lock className="w-3 h-3 text-titanium-400" /> : <Unlock className="w-3 h-3 text-aurora-amber animate-pulse" />}
-            <span>{zoomLocked ? 'Fixed' : 'Pinch Zoom'}</span>
+            <span>{zoomLocked ? 'Fixed' : 'Pinch'}</span>
           </button>
 
           {zoomScale > 1.05 && (
@@ -389,18 +398,6 @@ export default function DesktopViewer() {
             <Keyboard className="w-3.5 h-3.5" />
           </button>
 
-          {/* Quality Selector */}
-          <select
-            value={streamQuality}
-            onChange={e => setStreamQuality(e.target.value)}
-            className="bg-obsidian-900 border border-obsidian-750 text-titanium-300 text-[10px] font-mono rounded-lg px-1.5 py-1"
-          >
-            <option value="auto">Auto FPS</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-
           {/* Fullscreen Button */}
           <button
             onClick={toggleFullscreen}
@@ -418,7 +415,7 @@ export default function DesktopViewer() {
         className={`relative overflow-hidden border border-obsidian-750 bg-black shadow-2xl transition-all ${
           isFullscreen
             ? 'fixed inset-0 z-50 rounded-none w-screen h-screen flex items-center justify-center overscroll-none touch-none'
-            : 'rounded-xl'
+            : 'rounded-xl w-full flex items-center justify-center'
         }`}
         style={{
           minHeight: isFullscreen ? '100vh' : 240,
@@ -435,19 +432,20 @@ export default function DesktopViewer() {
               transition: 'transform 0.05s ease-out'
             }}
           >
-            {/* Sized exactly to rendered image */}
+            {/* Exactly Fitted Screen Image Without Cropping */}
             <div className="relative inline-block max-w-full max-h-full">
               <img
                 ref={imgRef}
                 src={`data:image/jpeg;base64,${currentScreenJpeg}`}
                 alt="Live Laptop Screen"
                 className={`select-none cursor-crosshair block ${
-                  isFullscreen ? 'max-w-full max-h-screen object-contain' : 'w-full h-auto'
+                  isFullscreen ? 'max-w-full max-h-screen object-contain' : 'w-full h-auto max-w-full object-contain'
                 }`}
                 style={{
                   touchAction: 'none',
                   userSelect: 'none',
-                  WebkitUserSelect: 'none'
+                  WebkitUserSelect: 'none',
+                  aspectRatio: '16/9'
                 }}
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
@@ -523,51 +521,57 @@ export default function DesktopViewer() {
 
         {/* Floating HUD Controls in Fullscreen */}
         {isFullscreen && (
-          <div className="absolute top-3 right-3 z-40 flex items-center gap-2 bg-black/75 backdrop-blur-md p-1.5 rounded-2xl border border-obsidian-750 shadow-2xl">
-            <button
-              onClick={() => {
-                if (!zoomLocked) resetZoom();
-                setZoomLocked(!zoomLocked);
-              }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition ${
-                zoomLocked
-                  ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
-                  : 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
-              }`}
-            >
-              {zoomLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5 text-aurora-amber animate-pulse" />}
-              <span>{zoomLocked ? 'Fixed' : 'Pinch Zoom'}</span>
-            </button>
-
-            {zoomScale > 1.05 && (
+          <>
+            <div className="absolute top-3 right-3 z-40 flex items-center gap-2 bg-black/75 backdrop-blur-md p-1.5 rounded-2xl border border-obsidian-750 shadow-2xl">
               <button
-                onClick={resetZoom}
-                className="px-2.5 py-1.5 rounded-xl bg-obsidian-900 border border-aurora-cyan/50 text-aurora-cyan text-xs font-mono font-bold"
+                onClick={() => {
+                  if (!zoomLocked) resetZoom();
+                  setZoomLocked(!zoomLocked);
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition ${
+                  zoomLocked
+                    ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
+                    : 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
+                }`}
               >
-                1.0x Reset
+                {zoomLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5 text-aurora-amber animate-pulse" />}
+                <span>{zoomLocked ? 'Fixed' : 'Pinch'}</span>
               </button>
-            )}
 
-            <button
-              onClick={() => setDragSelectMode(!dragSelectMode)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition ${
-                dragSelectMode
-                  ? 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
-                  : 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
-              }`}
-            >
-              <Hand className="w-3.5 h-3.5" />
-              <span>{dragSelectMode ? 'Selecting' : 'Select'}</span>
-            </button>
+              {zoomScale > 1.05 && (
+                <button
+                  onClick={resetZoom}
+                  className="px-2.5 py-1.5 rounded-xl bg-obsidian-900 border border-aurora-cyan/50 text-aurora-cyan text-xs font-mono font-bold"
+                >
+                  1.0x
+                </button>
+              )}
 
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white"
-              title="Exit Fullscreen"
-            >
-              <Minimize2 className="w-4 h-4" />
-            </button>
-          </div>
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white"
+                title="Exit Fullscreen"
+              >
+                <Minimize2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Floating Left/Right Thumb Trigger in Fullscreen */}
+            <div className="absolute bottom-6 right-4 z-40 flex items-center gap-2">
+              <button
+                onClick={handleExplicitLeftClick}
+                className="px-4 py-2.5 rounded-2xl bg-aurora-cyan text-obsidian-950 font-mono font-bold text-xs shadow-glow-cyan active:scale-90 transition"
+              >
+                Left Click
+              </button>
+              <button
+                onClick={handleExplicitRightClick}
+                className="px-4 py-2.5 rounded-2xl bg-aurora-pink text-white font-mono font-bold text-xs shadow-glow-pink active:scale-90 transition"
+              >
+                Right Click
+              </button>
+            </div>
+          </>
         )}
 
         {/* Live Touch / Action Status Bar */}
@@ -588,45 +592,62 @@ export default function DesktopViewer() {
         </div>
       )}
 
-      {/* Quick Action Bottom Strip */}
-      <div className="glass-panel p-2 rounded-xl border border-obsidian-750 flex items-center justify-between gap-1 text-xs font-mono">
-        <div className="flex items-center gap-1">
+      {/* DEDICATED HARDWARE MOUSE BUTTONS & QUICK STRIP */}
+      <div className="glass-panel p-2.5 rounded-2xl border border-obsidian-750 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+        {/* Left, Double & Right Click Buttons */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
           <button
-            onClick={() => handlePageScroll('up')}
-            className="p-1.5 rounded-lg glass-card text-titanium-300 hover:text-white flex items-center gap-1"
-            title="Page Up"
+            onClick={handleExplicitLeftClick}
+            className="flex-1 py-2 px-3 rounded-xl bg-aurora-cyan/20 border border-aurora-cyan/50 text-aurora-cyan font-bold text-xs shadow-glow-cyan hover:bg-aurora-cyan/30 active:scale-95 transition flex items-center justify-center gap-1.5"
           >
-            <ChevronUp className="w-3.5 h-3.5" />
-            <span className="text-[10px] hidden sm:inline">PgUp</span>
+            <Mouse className="w-3.5 h-3.5" />
+            <span>Left Click</span>
           </button>
+
           <button
-            onClick={() => handlePageScroll('down')}
-            className="p-1.5 rounded-lg glass-card text-titanium-300 hover:text-white flex items-center gap-1"
-            title="Page Down"
+            onClick={handleExplicitDoubleClick}
+            className="py-2 px-2.5 rounded-xl bg-aurora-purple/20 border border-aurora-purple/40 text-aurora-purple font-bold text-xs hover:bg-aurora-purple/30 active:scale-95 transition"
+            title="Double Click"
           >
-            <ChevronDown className="w-3.5 h-3.5" />
-            <span className="text-[10px] hidden sm:inline">PgDn</span>
+            2x
+          </button>
+
+          <button
+            onClick={handleExplicitRightClick}
+            className="flex-1 py-2 px-3 rounded-xl bg-aurora-pink/20 border border-aurora-pink/50 text-aurora-pink font-bold text-xs shadow-glow-pink hover:bg-aurora-pink/30 active:scale-95 transition flex items-center justify-center gap-1.5"
+          >
+            <Mouse className="w-3.5 h-3.5" />
+            <span>Right Click</span>
           </button>
         </div>
 
+        {/* Navigation & Windows Shortcuts */}
         <div className="flex items-center gap-1">
           <button
+            onClick={() => handlePageScroll('up')}
+            className="p-2 rounded-xl glass-card text-titanium-300 hover:text-white"
+            title="Page Up"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handlePageScroll('down')}
+            className="p-2 rounded-xl glass-card text-titanium-300 hover:text-white"
+            title="Page Down"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button
             onClick={() => sendInputEvent({ type: 'hotkey', hotkey: 'Alt+Tab' })}
-            className="px-2 py-1 rounded-lg glass-card text-titanium-300 hover:text-white text-[10px]"
+            className="px-2.5 py-2 rounded-xl glass-card text-titanium-300 hover:text-white text-[10px]"
           >
             Alt+Tab
           </button>
           <button
             onClick={() => executeCommand('SHOW_DESKTOP')}
-            className="px-2 py-1 rounded-lg glass-card text-titanium-300 hover:text-white text-[10px]"
+            className="px-2.5 py-2 rounded-xl glass-card text-titanium-300 hover:text-white text-[10px]"
           >
             Win+D
-          </button>
-          <button
-            onClick={() => executeCommand('LOCK_PC')}
-            className="px-2 py-1 rounded-lg glass-card text-titanium-300 hover:text-white text-[10px]"
-          >
-            Lock
           </button>
         </div>
       </div>
