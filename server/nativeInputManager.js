@@ -15,6 +15,9 @@ let latestStats = {
   activeWindow: 'Desktop'
 };
 
+let latestApps = [];
+let latestClipboardText = '';
+
 export function startInputDaemon() {
   if (daemonProcess) return;
   if (!fs.existsSync(daemonExe)) return;
@@ -38,6 +41,16 @@ export function startInputDaemon() {
               activeWindow: parts.slice(2).join('|') || 'Desktop'
             };
           }
+        } else if (trimmed.startsWith('APPS:')) {
+          try {
+            const rawJson = trimmed.substring(5);
+            latestApps = JSON.parse(rawJson);
+          } catch (_) {}
+        } else if (trimmed.startsWith('CLIP:')) {
+          try {
+            const b64 = trimmed.substring(5);
+            latestClipboardText = Buffer.from(b64, 'base64').toString('utf8');
+          } catch (_) {}
         }
       }
     });
@@ -55,7 +68,30 @@ export function startInputDaemon() {
 
 export function requestHardwareStats() {
   sendDaemonCommand('get_stats');
+  sendDaemonCommand('get_apps');
+  sendDaemonCommand('get_clip');
   return latestStats;
+}
+
+export function getCachedHardwareStats() {
+  return latestStats;
+}
+
+export function getCachedRunningApps() {
+  return latestApps;
+}
+
+export function getCachedClipboardText() {
+  return latestClipboardText;
+}
+
+export function nativeFocusProcess(pid) {
+  return sendDaemonCommand(`focus ${pid}`);
+}
+
+export function nativeSetClipboard(text) {
+  const b64 = Buffer.from(text, 'utf8').toString('base64');
+  return sendDaemonCommand(`set_clip ${b64}`);
 }
 
 export function getCachedHardwareStats() {

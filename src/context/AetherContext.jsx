@@ -151,6 +151,7 @@ export const AetherProvider = ({ children }) => {
                 batteryPercent: data.battery !== undefined ? data.battery : prev.batteryPercent,
                 isCharging: data.isCharging !== undefined ? data.isCharging : prev.isCharging,
                 activeWindow: data.activeWindow || prev.activeWindow,
+                runningApps: data.runningApps || prev.runningApps,
                 memInfo: data.memInfo || prev.memInfo
               }));
               break;

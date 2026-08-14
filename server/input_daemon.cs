@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Threading;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace AetherControl
 {
@@ -27,6 +28,12 @@ namespace AetherControl
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
         const int MOUSEEVENTF_MOVE = 0x0001;
         const int MOUSEEVENTF_LEFTDOWN = 0x0002;
@@ -51,6 +58,31 @@ namespace AetherControl
             return "Desktop";
         }
 
+        static string GetRunningAppsJson()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("[");
+            bool first = true;
+            foreach (Process p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (!string.IsNullOrEmpty(p.MainWindowTitle) && p.MainWindowHandle != IntPtr.Zero)
+                    {
+                        if (!first) sb.Append(",");
+                        first = false;
+                        string cleanTitle = p.MainWindowTitle.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "");
+                        string cleanProc = p.ProcessName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        sb.Append(string.Format("{{\"id\":\"app-{0}\",\"pid\":{0},\"name\":\"{1}\",\"title\":\"{2}\",\"active\":false}}", p.Id, cleanProc, cleanTitle));
+                    }
+                }
+                catch {}
+            }
+            sb.Append("]");
+            return sb.ToString();
+        }
+
+        [STAThread]
         static void Main(string[] args)
         {
             // Keep display & system awake
@@ -179,6 +211,23 @@ namespace AetherControl
                         mouse_event(MOUSEEVENTF_MOVE, 1, 1, 0, 0);
                         mouse_event(MOUSEEVENTF_MOVE, -1, -1, 0, 0);
                     }
+                    else if (cmd == "focus" && parts.Length >= 2)
+                    {
+                        int pid;
+                        if (int.TryParse(parts[1], out pid))
+                        {
+                            try
+                            {
+                                Process p = Process.GetProcessById(pid);
+                                if (p.MainWindowHandle != IntPtr.Zero)
+                                {
+                                    ShowWindow(p.MainWindowHandle, 9); // SW_RESTORE
+                                    SetForegroundWindow(p.MainWindowHandle);
+                                }
+                            }
+                            catch {}
+                        }
+                    }
                     else if (cmd == "get_stats")
                     {
                         // Real hardware battery & active window telemetry
@@ -188,6 +237,35 @@ namespace AetherControl
                         string activeTitle = GetActiveWindowTitle();
 
                         Console.WriteLine(string.Format("STAT:{0}|{1}|{2}", batteryPercent, isCharging ? 1 : 0, activeTitle));
+                    }
+                    else if (cmd == "get_apps")
+                    {
+                        string appsJson = GetRunningAppsJson();
+                        Console.WriteLine("APPS:" + appsJson);
+                    }
+                    else if (cmd == "get_clip")
+                    {
+                        try
+                        {
+                            if (Clipboard.ContainsText())
+                            {
+                                string txt = Clipboard.GetText();
+                                string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(txt));
+                                Console.WriteLine("CLIP:" + b64);
+                            }
+                        }
+                        catch {}
+                    }
+                    else if (cmd == "set_clip" && parts.Length >= 2)
+                    {
+                        try
+                        {
+                            string b64 = parts[1];
+                            byte[] bytes = Convert.FromBase64String(b64);
+                            string txt = Encoding.UTF8.GetString(bytes);
+                            Clipboard.SetText(txt);
+                        }
+                        catch {}
                     }
                 }
                 catch

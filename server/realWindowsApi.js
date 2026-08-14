@@ -21,7 +21,11 @@ import {
   nativeSendKeys,
   nativeWake,
   requestHardwareStats,
-  getCachedHardwareStats
+  getCachedHardwareStats,
+  getCachedRunningApps,
+  getCachedClipboardText,
+  nativeFocusProcess,
+  nativeSetClipboard
 } from './nativeInputManager.js';
 
 // Initialize power keep-awake on startup
@@ -111,6 +115,40 @@ export function getRealSystemStats() {
     hostname: os.hostname(),
     uptime: Math.floor(os.uptime()),
   };
+}
+
+export function getRealRunningApps() {
+  const apps = getCachedRunningApps();
+  if (apps && apps.length > 0) return apps;
+  return [
+    { id: 'app-antigravity', name: 'Antigravity', title: 'Antigravity IDE', active: true },
+    { id: 'app-terminal', name: 'cmd', title: 'Terminal', active: false },
+    { id: 'app-browser', name: 'chrome', title: 'Google Chrome', active: false },
+    { id: 'app-explorer', name: 'explorer', title: 'File Explorer', active: false }
+  ];
+}
+
+export function focusRealWindow(appNameOrPid) {
+  const pid = parseInt(appNameOrPid, 10);
+  if (!isNaN(pid) && pid > 0) {
+    nativeFocusProcess(pid);
+    return true;
+  }
+  const apps = getCachedRunningApps();
+  const target = apps.find(a => a.name.toLowerCase().includes(String(appNameOrPid).toLowerCase()) || a.title.toLowerCase().includes(String(appNameOrPid).toLowerCase()));
+  if (target && target.pid) {
+    nativeFocusProcess(target.pid);
+    return true;
+  }
+  return false;
+}
+
+export function getRealClipboardText() {
+  return getCachedClipboardText();
+}
+
+export function setRealClipboardText(text) {
+  return nativeSetClipboard(text);
 }
 
 // ─────────────────────────────────────────────

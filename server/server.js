@@ -29,6 +29,10 @@ import {
   normalizeSafePath,
   realDispatchInput,
   realExecuteSystemCommand,
+  getRealRunningApps,
+  focusRealWindow,
+  getRealClipboardText,
+  setRealClipboardText
 } from './realWindowsApi.js';
 import {
   getSystemStatus,
@@ -140,15 +144,21 @@ startScreenshare();
 // ─────────────────────────────────────────────
 // SYSTEM TELEMETRY LOOP (Real live hardware stats)
 // ─────────────────────────────────────────────
+let lastKnownClip = '';
+
 setInterval(() => {
   const real = getRealSystemStats();
+  const apps = getRealRunningApps();
+  const clip = getRealClipboardText();
   const status = getSystemStatus();
+
   // Merge real stats into system status
   status.cpuUsage = real.cpuUsage;
   status.ramUsage = real.ramUsage;
   status.batteryPercent = real.batteryPercent;
   status.isCharging = real.isCharging;
   status.activeWindow = real.activeWindow;
+  status.runningApps = apps;
   status.telemetry.latency = Math.max(4, Math.min(60, (status.telemetry.latency || 12) + (Math.floor(Math.random() * 3) - 1)));
   status.telemetry.rssi = Math.max(-80, Math.min(-35, (status.telemetry.rssi || -50) + (Math.floor(Math.random() * 3) - 1)));
 
@@ -160,8 +170,15 @@ setInterval(() => {
     battery: real.batteryPercent,
     isCharging: real.isCharging,
     activeWindow: real.activeWindow,
+    runningApps: apps,
     memInfo: { total: real.totalMemGB, used: real.usedMemGB, free: real.freeMemGB }
   });
+
+  if (clip && clip !== lastKnownClip) {
+    lastKnownClip = clip;
+    const item = addClipboardItem(clip, 'Laptop');
+    broadcast({ type: 'clipboard_updated', item });
+  }
 }, 2000);
 
 // ─────────────────────────────────────────────
@@ -239,13 +256,22 @@ function broadcast(data) {
 
 wss.on('connection', (ws) => {
   clients.add(ws);
-  screenshareActive = true; // ensure streaming on any new connection
+  screenshareActive = true;
+  const real = getRealSystemStats();
+  const apps = getRealRunningApps();
   const lan = getLanInfo();
+  const status = getSystemStatus();
+  status.cpuUsage = real.cpuUsage;
+  status.ramUsage = real.ramUsage;
+  status.batteryPercent = real.batteryPercent;
+  status.isCharging = real.isCharging;
+  status.activeWindow = real.activeWindow;
+  status.runningApps = apps;
+
   ws.send(JSON.stringify({
     type: 'init_state',
-    status: { ...getSystemStatus(), tunnel: getTunnelInfo(), lan }
+    status: { ...status, runningApps: apps, tunnel: getTunnelInfo(), lan }
   }));
-  // Tell client screenshare is active
   ws.send(JSON.stringify({ type: 'screenshare_state', active: true }));
 
   ws.on('message', (raw) => {

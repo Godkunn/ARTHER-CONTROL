@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Zap, Shield, Volume2, VolumeX, Lock, Cpu, Eye,
-  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging
+  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -34,13 +34,22 @@ export default function Dashboard() {
     setTimeout(() => setCopiedSuccess(false), 2000);
   };
 
-  const getAppIcon = (name) => {
-    if (name.includes('Antigravity')) return <Code2 className="w-5 h-5 text-aurora-cyan" />;
-    if (name.includes('Codex') || name.includes('Terminal')) return <Terminal className="w-5 h-5 text-aurora-emerald" />;
-    if (name.includes('Chrome')) return <Globe className="w-5 h-5 text-aurora-blue" />;
-    if (name.includes('VS Code')) return <FileCode className="w-5 h-5 text-aurora-purple" />;
-    return <Folder className="w-5 h-5 text-titanium-300" />;
+  const getAppIcon = (name, title = '') => {
+    const combined = (name + ' ' + title).toLowerCase();
+    if (combined.includes('antigravity') || combined.includes('code') || combined.includes('cursor')) return <Code2 className="w-5 h-5 text-aurora-cyan" />;
+    if (combined.includes('terminal') || combined.includes('cmd') || combined.includes('powershell')) return <Terminal className="w-5 h-5 text-aurora-emerald" />;
+    if (combined.includes('chrome') || combined.includes('edge') || combined.includes('firefox') || combined.includes('browser')) return <Globe className="w-5 h-5 text-aurora-blue" />;
+    if (combined.includes('explorer') || combined.includes('files')) return <Folder className="w-5 h-5 text-titanium-300" />;
+    return <Cpu className="w-5 h-5 text-aurora-purple" />;
   };
+
+  const runningApps = Array.isArray(systemStatus.runningApps) && systemStatus.runningApps.length > 0
+    ? systemStatus.runningApps
+    : [
+        { id: 'app-1', name: 'Antigravity', title: 'Antigravity IDE', active: true, pid: 1420 },
+        { id: 'app-2', name: 'chrome', title: 'Google Chrome', active: false, pid: 8120 },
+        { id: 'app-3', name: 'explorer', title: 'File Explorer', active: false, pid: 4192 }
+      ];
 
   return (
     <div className="p-4 space-y-5 pb-24 max-w-4xl mx-auto">
@@ -52,7 +61,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-bold text-slate-100">Hybrid Operating Console</h2>
           </div>
           <p className="text-xs text-titanium-400">
-            Current active target: <span className="text-aurora-cyan font-mono font-semibold">{systemStatus.activeWindow}</span>
+            Current active target: <span className="text-aurora-cyan font-mono font-semibold">{systemStatus.activeWindow || 'Desktop'}</span>
           </p>
         </div>
 
@@ -155,36 +164,55 @@ export default function Dashboard() {
 
       {/* System Quick Hardware Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="glass-card p-3 rounded-xl border border-obsidian-750 flex items-center justify-between">
-          <div>
+        {/* CPU Metric Card */}
+        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">CPU Load</p>
-            <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.cpuUsage}%</p>
+            <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.cpuUsage || 0}%</p>
+            <div className="w-20 bg-obsidian-800 h-1.5 rounded-full overflow-hidden">
+              <div
+                className="bg-aurora-cyan h-full transition-all duration-500 rounded-full"
+                style={{ width: `${Math.min(100, systemStatus.cpuUsage || 0)}%` }}
+              />
+            </div>
           </div>
           <Cpu className="w-5 h-5 text-aurora-cyan opacity-80" />
         </div>
 
-        <div className="glass-card p-3 rounded-xl border border-obsidian-750 flex items-center justify-between">
-          <div>
+        {/* RAM Metric Card */}
+        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">RAM Usage</p>
-            <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.ramUsage}%</p>
+            <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.ramUsage || 0}%</p>
+            <p className="text-[9px] font-mono text-titanium-500">
+              {systemStatus.memInfo?.used ? `${systemStatus.memInfo.used} / ${systemStatus.memInfo.total} GB` : 'Live'}
+            </p>
           </div>
           <Activity className="w-5 h-5 text-aurora-purple opacity-80" />
         </div>
 
-        <div className="glass-card p-3 rounded-xl border border-obsidian-750 flex items-center justify-between">
-          <div>
+        {/* Battery Metric Card */}
+        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">Battery</p>
-            <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.batteryPercent}%</p>
+            <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.batteryPercent || 100}%</p>
+            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+              systemStatus.isCharging ? 'bg-aurora-emerald/15 text-aurora-emerald font-bold' : 'text-titanium-400'
+            }`}>
+              {systemStatus.isCharging ? '⚡ Charging' : 'On Battery'}
+            </span>
           </div>
           <BatteryCharging className="w-5 h-5 text-aurora-emerald opacity-80" />
         </div>
 
-        <div className="glass-card p-3 rounded-xl border border-obsidian-750 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">Volume</p>
+        {/* Volume Metric Card */}
+        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">Master Audio</p>
             <p className="text-lg font-bold text-slate-100 font-mono">
-              {systemStatus.isMuted ? 'Muted' : `${systemStatus.volume}%`}
+              {systemStatus.isMuted ? 'Muted' : `${systemStatus.volume || 75}%`}
             </p>
+            <span className="text-[9px] font-mono text-titanium-400">Windows Volume</span>
           </div>
           {systemStatus.isMuted ? (
             <VolumeX className="w-5 h-5 text-aurora-pink" />
@@ -201,13 +229,13 @@ export default function Dashboard() {
             <Zap className="w-4 h-4 text-aurora-amber" />
             <span>Quick Command Dock</span>
           </h3>
-          <span className="text-[10px] font-mono text-titanium-400">Zero Bandwidth</span>
+          <span className="text-[10px] font-mono text-titanium-400">Direct Hardware</span>
         </div>
 
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
           <button
             onClick={() => executeCommand('VOLUME_UP')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40"
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
           >
             <Volume2 className="w-4 h-4 text-aurora-cyan" />
             <span className="text-[10px] font-mono text-titanium-300">Vol +</span>
@@ -215,7 +243,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => executeCommand('VOLUME_DOWN')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40"
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
           >
             <Volume2 className="w-4 h-4 text-titanium-400" />
             <span className="text-[10px] font-mono text-titanium-300">Vol -</span>
@@ -223,7 +251,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => executeCommand('TOGGLE_MUTE')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-pink/40"
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-pink/40 active:scale-95 transition"
           >
             <VolumeX className="w-4 h-4 text-aurora-pink" />
             <span className="text-[10px] font-mono text-titanium-300">Mute</span>
@@ -231,7 +259,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => executeCommand('SHOW_DESKTOP')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-purple/40"
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-purple/40 active:scale-95 transition"
           >
             <Monitor className="w-4 h-4 text-aurora-purple" />
             <span className="text-[10px] font-mono text-titanium-300">Desktop</span>
@@ -239,7 +267,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => executeCommand('TASK_MANAGER')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-emerald/40"
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-emerald/40 active:scale-95 transition"
           >
             <Cpu className="w-4 h-4 text-aurora-emerald" />
             <span className="text-[10px] font-mono text-titanium-300">Tasks</span>
@@ -247,27 +275,28 @@ export default function Dashboard() {
 
           <button
             onClick={() => executeCommand('LOCK_PC')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-amber/40"
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-amber/40 active:scale-95 transition"
           >
             <Lock className="w-4 h-4 text-aurora-amber" />
             <span className="text-[10px] font-mono text-titanium-300">Lock</span>
           </button>
 
           <button
-            onClick={() => triggerTestApproval('Antigravity IDE')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 border-aurora-cyan/30 hover:border-aurora-cyan"
-            title="Simulate incoming approval prompt"
+            onClick={() => executeCommand('WAKE_DISPLAY')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 border-aurora-cyan/30 hover:border-aurora-cyan active:scale-95 transition"
+            title="Wake Laptop Screen"
           >
-            <Shield className="w-4 h-4 text-aurora-cyan" />
-            <span className="text-[10px] font-mono text-aurora-cyan">Test Appr</span>
+            <Zap className="w-4 h-4 text-aurora-cyan" />
+            <span className="text-[10px] font-mono text-aurora-cyan font-bold">Wake</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('desktop')}
-            className="p-2.5 rounded-xl glass-panel-active text-center flex flex-col items-center justify-center space-y-1"
+            onClick={() => triggerTestApproval('Antigravity IDE')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-emerald/40 active:scale-95 transition"
+            title="Simulate incoming approval prompt"
           >
-            <ArrowUpRight className="w-4 h-4 text-aurora-cyan" />
-            <span className="text-[10px] font-mono text-aurora-cyan font-bold">Remote UI</span>
+            <Shield className="w-4 h-4 text-aurora-emerald" />
+            <span className="text-[10px] font-mono text-titanium-300">Test Alert</span>
           </button>
         </div>
       </div>
@@ -275,40 +304,41 @@ export default function Dashboard() {
       {/* RUNNING WINDOW MANAGER */}
       <div className="glass-panel p-4 rounded-2xl border border-obsidian-750 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-200 tracking-wider uppercase">
-            Running Application Switcher
+          <h3 className="text-sm font-bold text-slate-200 tracking-wider uppercase flex items-center gap-1.5">
+            <Monitor className="w-4 h-4 text-aurora-cyan" />
+            <span>Open Workstation Windows</span>
           </h3>
           <span className="text-xs font-mono text-titanium-400">Tap to focus window</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-          {systemStatus.runningApps.map((app) => (
+          {runningApps.map((app) => (
             <div
-              key={app.id}
-              onClick={() => focusWindow(app.name)}
+              key={app.id || app.pid}
+              onClick={() => focusWindow(app.pid || app.name)}
               className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                app.active
+                app.active || systemStatus.activeWindow === (app.title || app.name)
                   ? 'bg-obsidian-800 border-aurora-cyan/50 shadow-glow-cyan'
                   : 'glass-card hover:border-obsidian-700'
               }`}
             >
-              <div className="flex items-center space-x-3">
-                <div className="p-2 rounded-lg bg-obsidian-900 border border-obsidian-750">
-                  {getAppIcon(app.name)}
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="p-2 rounded-lg bg-obsidian-900 border border-obsidian-750 shrink-0">
+                  {getAppIcon(app.name, app.title)}
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-200">{app.name}</h4>
-                  <p className="text-[10px] font-mono text-titanium-400">PID: {app.pid}</p>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold text-slate-200 truncate">{app.title || app.name}</h4>
+                  <p className="text-[10px] font-mono text-titanium-400">{app.name} • PID: {app.pid}</p>
                 </div>
               </div>
 
-              {app.active ? (
-                <span className="text-[10px] font-mono uppercase text-aurora-cyan bg-aurora-cyan/10 px-2 py-0.5 rounded border border-aurora-cyan/30">
-                  Focused
+              {app.active || systemStatus.activeWindow === (app.title || app.name) ? (
+                <span className="text-[9px] font-mono uppercase text-aurora-cyan bg-aurora-cyan/10 px-2 py-0.5 rounded border border-aurora-cyan/30 shrink-0">
+                  Active
                 </span>
               ) : (
-                <span className="text-[10px] font-mono text-titanium-400 hover:text-white">
-                  Bring to front
+                <span className="text-[9px] font-mono text-titanium-400 hover:text-white shrink-0">
+                  Focus ↗
                 </span>
               )}
             </div>
@@ -348,7 +378,7 @@ export default function Dashboard() {
             <span className="text-titanium-300 truncate max-w-[80%]">
               Latest: {systemStatus.clipboard[0].text}
             </span>
-            <span className="text-[10px] text-titanium-400">({systemStatus.clipboard[0].source})</span>
+            <span className="text-[10px] text-titanium-500">{systemStatus.clipboard[0].source || 'Laptop'}</span>
           </div>
         )}
       </div>
