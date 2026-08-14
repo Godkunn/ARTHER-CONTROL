@@ -167,8 +167,8 @@ export default function VirtualKeyboard() {
         <button onClick={() => handleKeyPress('Ctrl+S')} className="p-1.5 rounded-lg bg-obsidian-950 border border-obsidian-800 text-[11px] font-mono text-aurora-cyan font-bold">
           Ctrl+S
         </button>
-        <button onClick={() => handleKeyPress('Ctrl+P')} className="p-1.5 rounded-lg bg-obsidian-950 border border-obsidian-800 text-[11px] font-mono text-titanium-300 hover:text-white">
-          Ctrl+P
+        <button onClick={() => handleKeyPress('Ctrl+Shift+T')} className="p-1.5 rounded-lg bg-obsidian-950 border border-obsidian-800 text-[11px] font-mono text-aurora-blue font-bold">
+          Reopen Tab
         </button>
         <button onClick={() => handleKeyPress('Alt+Tab')} className="p-1.5 rounded-lg bg-obsidian-950 border border-obsidian-800 text-[11px] font-mono text-aurora-purple font-bold">
           Alt+Tab

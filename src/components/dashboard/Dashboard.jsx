@@ -320,35 +320,8 @@ export default function Dashboard() {
           <span className="text-[10px] font-mono text-titanium-400">Hardware Level</span>
         </div>
 
-        {/* 16 Powerful Quick Buttons in 2 Clean Rows */}
+        {/* 16 Powerful Quick Buttons in 4x4 Clean Grid */}
         <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          <button
-            onClick={() => executeCommand('VOLUME_UP')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
-            title="Increase Master Volume"
-          >
-            <Volume2 className="w-4 h-4 text-aurora-cyan" />
-            <span className="text-[10px] font-mono text-titanium-300">Vol +</span>
-          </button>
-
-          <button
-            onClick={() => executeCommand('VOLUME_DOWN')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
-            title="Decrease Master Volume"
-          >
-            <Volume2 className="w-4 h-4 text-titanium-400" />
-            <span className="text-[10px] font-mono text-titanium-300">Vol -</span>
-          </button>
-
-          <button
-            onClick={() => executeCommand('TOGGLE_MUTE')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-pink/40 active:scale-95 transition"
-            title="Toggle Mute"
-          >
-            <VolumeX className="w-4 h-4 text-aurora-pink" />
-            <span className="text-[10px] font-mono text-titanium-300">Mute</span>
-          </button>
-
           <button
             onClick={() => executeCommand('SHOW_DESKTOP')}
             className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-purple/40 active:scale-95 transition"
@@ -482,14 +455,6 @@ export default function Dashboard() {
             <span className="text-[10px] font-mono text-titanium-300">Terminal</span>
           </button>
 
-          <button
-            onClick={() => executeCommand('REOPEN_TAB')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
-            title="Reopen Closed Tab in Chrome/Edge (Ctrl+Shift+T)"
-          >
-            <RotateCcw className="w-4 h-4 text-aurora-cyan" />
-            <span className="text-[10px] font-mono text-titanium-300">Reopen</span>
-          </button>
 
           <button
             onClick={() => executeCommand('OPEN_SETTINGS')}
