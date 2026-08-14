@@ -65,7 +65,7 @@ namespace AetherControl
             _jpegParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
         }
 
-        static string CaptureScreenBase64(int quality = 65, double scale = 1.0)
+        static string CaptureScreenBase64(double scale = 0.85)
         {
             try
             {
@@ -80,20 +80,18 @@ namespace AetherControl
                         g.CopyFromScreen(0, 0, 0, 0, bounds.Size, CopyPixelOperation.SourceCopy);
                     }
 
-                    if (_jpegCodec == null) InitJpegCodec(quality);
-
-                    using (MemoryStream ms = new MemoryStream(128 * 1024))
+                    using (MemoryStream ms = new MemoryStream(64 * 1024))
                     {
                         if (scale < 0.99)
                         {
-                            using (Bitmap resized = new Bitmap(bmp, new Size(targetW, targetH)))
+                            using (Bitmap resized = new Bitmap(bmp, targetW, targetH))
                             {
-                                resized.Save(ms, _jpegCodec, _jpegParams);
+                                resized.Save(ms, ImageFormat.Jpeg);
                             }
                         }
                         else
                         {
-                            bmp.Save(ms, _jpegCodec, _jpegParams);
+                            bmp.Save(ms, ImageFormat.Jpeg);
                         }
 
                         byte[] bytes = ms.ToArray();
@@ -275,7 +273,7 @@ namespace AetherControl
                     }
                     else if (cmd == "cap")
                     {
-                        string b64 = CaptureScreenBase64(65, 0.85);
+                        string b64 = CaptureScreenBase64(0.85);
                         if (!string.IsNullOrEmpty(b64))
                         {
                             Console.WriteLine("FRAME:" + b64);

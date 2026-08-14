@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const daemonExe = path.join(__dirname, 'input_daemon.exe');
 
+let daemonProcess = null;
 let latestStats = {
   batteryPercent: 100,
   isCharging: true,
@@ -121,10 +122,6 @@ export function nativeFocusProcess(pid) {
 export function nativeSetClipboard(text) {
   const b64 = Buffer.from(text, 'utf8').toString('base64');
   return sendDaemonCommand(`set_clip ${b64}`);
-}
-
-export function getCachedHardwareStats() {
-  return latestStats;
 }
 
 export function sendDaemonCommand(cmd) {
