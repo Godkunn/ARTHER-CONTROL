@@ -17,6 +17,8 @@ let latestStats = {
 
 let latestApps = [];
 let latestClipboardText = '';
+let latestFrameBase64 = null;
+let frameCallbacks = [];
 
 export function startInputDaemon() {
   if (daemonProcess) return;
@@ -28,10 +30,16 @@ export function startInputDaemon() {
       windowsHide: true
     });
 
+    let buffer = '';
+
     daemonProcess.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n');
-      for (const line of lines) {
+      buffer += data.toString();
+      let nlIndex;
+      while ((nlIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.substring(0, nlIndex);
+        buffer = buffer.substring(nlIndex + 1);
         const trimmed = line.trim();
+
         if (trimmed.startsWith('STAT:')) {
           const parts = trimmed.substring(5).split('|');
           if (parts.length >= 3) {
@@ -51,6 +59,13 @@ export function startInputDaemon() {
             const b64 = trimmed.substring(5);
             latestClipboardText = Buffer.from(b64, 'base64').toString('utf8');
           } catch (_) {}
+        } else if (trimmed.startsWith('FRAME:')) {
+          const b64 = trimmed.substring(6);
+          latestFrameBase64 = b64;
+          while (frameCallbacks.length > 0) {
+            const cb = frameCallbacks.shift();
+            cb(b64);
+          }
         }
       }
     });
@@ -60,10 +75,24 @@ export function startInputDaemon() {
       setTimeout(startInputDaemon, 1000);
     });
 
-    console.log('[AETHER INPUT] Native Ultra-Fast Win32 Input Daemon active (0.05ms response)');
+    console.log('[AETHER INPUT] Native Ultra-Fast Win32 Input & GDI Screen Engine active (0.05ms response)');
   } catch (err) {
     console.warn('[AETHER INPUT] Native input daemon notice:', err.message);
   }
+}
+
+export function nativeCaptureScreen() {
+  return new Promise((resolve) => {
+    frameCallbacks.push(resolve);
+    sendDaemonCommand('cap');
+    setTimeout(() => {
+      const idx = frameCallbacks.indexOf(resolve);
+      if (idx !== -1) {
+        frameCallbacks.splice(idx, 1);
+        resolve(latestFrameBase64);
+      }
+    }, 450);
+  });
 }
 
 export function requestHardwareStats() {

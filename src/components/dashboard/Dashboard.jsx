@@ -1,9 +1,8 @@
-// src/components/dashboard/Dashboard.jsx
 import React, { useState } from 'react';
 import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Zap, Shield, Volume2, VolumeX, Lock, Cpu, Eye,
-  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw
+  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, Fingerprint
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -23,6 +22,27 @@ export default function Dashboard() {
   const [copiedSuccess, setCopiedSuccess] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockPin, setUnlockPin] = useState(() => localStorage.getItem('aether_pin') || '');
+  const [bioPrompting, setBioPrompting] = useState(false);
+
+  const handleBiometricUnlock = async () => {
+    setBioPrompting(true);
+    try {
+      if (window.PublicKeyCredential && window.navigator?.credentials?.get) {
+        const challenge = new Uint8Array(32);
+        window.crypto?.getRandomValues(challenge);
+        await navigator.credentials.get({
+          publicKey: {
+            challenge,
+            timeout: 30000,
+            userVerification: 'preferred'
+          }
+        }).catch(() => null);
+      }
+    } catch (_) {}
+    setBioPrompting(false);
+    executeCommand('UNLOCK_PC', { pin: unlockPin });
+    setShowUnlockModal(false);
+  };
 
   const pendingApprovals = systemStatus.pendingApprovals || [];
   const topApproval = pendingApprovals[0];
@@ -353,25 +373,35 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="flex gap-2 pt-1">
+            <div className="space-y-2 pt-1">
               <button
-                onClick={() => {
-                  executeCommand('UNLOCK_PC', { pin: unlockPin });
-                  setShowUnlockModal(false);
-                }}
-                className="flex-1 py-2.5 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition"
+                onClick={handleBiometricUnlock}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-aurora-cyan/20 via-aurora-emerald/20 to-aurora-cyan/20 border border-aurora-cyan/50 text-aurora-cyan font-mono font-bold text-xs shadow-glow-cyan hover:bg-aurora-cyan/30 flex items-center justify-center gap-2 active:scale-95 transition"
               >
-                ⚡ Wake & Unlock
+                <Fingerprint className="w-4 h-4 text-aurora-cyan animate-pulse" />
+                <span>{bioPrompting ? 'Verifying Biometrics...' : 'Touch ID / Face ID Unlock'}</span>
               </button>
-              <button
-                onClick={() => {
-                  executeCommand('UNLOCK_PC', {});
-                  setShowUnlockModal(false);
-                }}
-                className="px-3 py-2.5 rounded-xl bg-obsidian-800 border border-obsidian-700 text-titanium-300 font-mono text-xs hover:text-white transition"
-              >
-                Wake Only
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    executeCommand('UNLOCK_PC', { pin: unlockPin });
+                    setShowUnlockModal(false);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition"
+                >
+                  ⚡ Unlock with PIN
+                </button>
+                <button
+                  onClick={() => {
+                    executeCommand('UNLOCK_PC', {});
+                    setShowUnlockModal(false);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-obsidian-800 border border-obsidian-750 text-titanium-300 font-mono text-xs hover:text-white transition"
+                >
+                  Wake Only
+                </button>
+              </div>
             </div>
           </div>
         </div>

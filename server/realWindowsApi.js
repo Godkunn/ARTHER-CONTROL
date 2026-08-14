@@ -25,21 +25,28 @@ import {
   getCachedRunningApps,
   getCachedClipboardText,
   nativeFocusProcess,
-  nativeSetClipboard
+  nativeSetClipboard,
+  nativeCaptureScreen
 } from './nativeInputManager.js';
 
 // Initialize power keep-awake on startup
 enableKeepAwake();
 
 // ─────────────────────────────────────────────
-// SCREEN CAPTURE
+// SCREEN CAPTURE (High-Speed In-Memory Native Engine)
 // ─────────────────────────────────────────────
 let lastWakeAttempt = 0;
 
 export async function captureScreen() {
   try {
+    const nativeBase64 = await nativeCaptureScreen();
+    if (nativeBase64 && nativeBase64.length > 500) {
+      return nativeBase64;
+    }
+  } catch (_) {}
+
+  try {
     let imgBuffer = await screenshot({ format: 'jpg' });
-    // If buffer is smaller than 2KB, screen is truly black/asleep
     if (imgBuffer && imgBuffer.length < 2000 && Date.now() - lastWakeAttempt > 4000) {
       lastWakeAttempt = Date.now();
       await wakeDisplay();

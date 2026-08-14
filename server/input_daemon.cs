@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Threading;
@@ -46,6 +48,65 @@ namespace AetherControl
         const byte VK_TAB = 0x09;  // TAB
         const uint KEYEVENTF_KEYUP = 0x0002;
 
+        static ImageCodecInfo _jpegCodec = null;
+        static EncoderParameters _jpegParams = null;
+
+        static void InitJpegCodec(long quality)
+        {
+            foreach (ImageCodecInfo codec in ImageCodecInfo.GetImageEncoders())
+            {
+                if (codec.MimeType == "image/jpeg")
+                {
+                    _jpegCodec = codec;
+                    break;
+                }
+            }
+            _jpegParams = new EncoderParameters(1);
+            _jpegParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
+        }
+
+        static string CaptureScreenBase64(int quality = 65, double scale = 1.0)
+        {
+            try
+            {
+                Rectangle bounds = Screen.PrimaryScreen.Bounds;
+                int targetW = (int)Math.Round(bounds.Width * scale);
+                int targetH = (int)Math.Round(bounds.Height * scale);
+
+                using (Bitmap bmp = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppRgb))
+                {
+                    using (Graphics g = Graphics.FromImage(bmp))
+                    {
+                        g.CopyFromScreen(0, 0, 0, 0, bounds.Size, CopyPixelOperation.SourceCopy);
+                    }
+
+                    if (_jpegCodec == null) InitJpegCodec(quality);
+
+                    using (MemoryStream ms = new MemoryStream(128 * 1024))
+                    {
+                        if (scale < 0.99)
+                        {
+                            using (Bitmap resized = new Bitmap(bmp, new Size(targetW, targetH)))
+                            {
+                                resized.Save(ms, _jpegCodec, _jpegParams);
+                            }
+                        }
+                        else
+                        {
+                            bmp.Save(ms, _jpegCodec, _jpegParams);
+                        }
+
+                        byte[] bytes = ms.ToArray();
+                        return Convert.ToBase64String(bytes);
+                    }
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         static string GetActiveWindowTitle()
         {
             const int nChars = 256;
@@ -87,6 +148,7 @@ namespace AetherControl
         {
             // Keep display & system awake
             SetThreadExecutionState(unchecked((int)0x80000003));
+            InitJpegCodec(65L);
 
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.WriteLine("AETHER_INPUT_READY");
@@ -211,6 +273,14 @@ namespace AetherControl
                         mouse_event(MOUSEEVENTF_MOVE, 1, 1, 0, 0);
                         mouse_event(MOUSEEVENTF_MOVE, -1, -1, 0, 0);
                     }
+                    else if (cmd == "cap")
+                    {
+                        string b64 = CaptureScreenBase64(65, 0.85);
+                        if (!string.IsNullOrEmpty(b64))
+                        {
+                            Console.WriteLine("FRAME:" + b64);
+                        }
+                    }
                     else if (cmd == "focus" && parts.Length >= 2)
                     {
                         int pid;
@@ -230,7 +300,6 @@ namespace AetherControl
                     }
                     else if (cmd == "get_stats")
                     {
-                        // Real hardware battery & active window telemetry
                         PowerStatus power = SystemInformation.PowerStatus;
                         int batteryPercent = (int)Math.Round(power.BatteryLifePercent * 100);
                         bool isCharging = power.PowerLineStatus == PowerLineStatus.Online;
