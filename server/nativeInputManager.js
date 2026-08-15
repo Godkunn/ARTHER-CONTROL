@@ -184,6 +184,26 @@ export function nativeReopenTab() {
   return sendDaemonCommand('reopen_tab');
 }
 
+export function nativeBrowserBack() {
+  return sendDaemonCommand('browser_back');
+}
+
+export function nativeBrowserForward() {
+  return sendDaemonCommand('browser_forward');
+}
+
+export function nativeBrowserRefresh() {
+  return sendDaemonCommand('browser_refresh');
+}
+
+export function nativeBrowserCloseTab() {
+  return sendDaemonCommand('browser_close_tab');
+}
+
+export function nativeBrowserNewTab() {
+  return sendDaemonCommand('browser_new_tab');
+}
+
 export function nativeMouseMove(px, py) {
   return sendDaemonCommand(`move ${px.toFixed(4)} ${py.toFixed(4)}`);
 }

@@ -36,6 +36,11 @@ import {
   nativeVolumeDown,
   nativeVolumeMute,
   nativeReopenTab,
+  nativeBrowserBack,
+  nativeBrowserForward,
+  nativeBrowserRefresh,
+  nativeBrowserCloseTab,
+  nativeBrowserNewTab,
   nativeTypeText
 } from './nativeInputManager.js';
 
@@ -489,6 +494,31 @@ export function realDispatchInput(event) {
         nativeAltTab();
         return;
       }
+      if (rawKey === 'Alt+Left' || rawKey === '%{LEFT}' || rawKey === 'BROWSER_BACK') {
+        nativeBrowserBack();
+        return;
+      }
+      if (rawKey === 'Alt+Right' || rawKey === '%{RIGHT}' || rawKey === 'BROWSER_FORWARD') {
+        nativeBrowserForward();
+        return;
+      }
+      if (rawKey === 'Ctrl+R' || rawKey === '^r' || rawKey === '{F5}' || rawKey === 'F5' || rawKey === 'BROWSER_REFRESH') {
+        nativeBrowserRefresh();
+        return;
+      }
+      if (rawKey === 'Ctrl+W' || rawKey === '^w' || rawKey === 'BROWSER_CLOSE_TAB') {
+        nativeBrowserCloseTab();
+        return;
+      }
+      if (rawKey === 'Ctrl+T' || rawKey === '^t' || rawKey === 'BROWSER_NEW_TAB') {
+        nativeBrowserNewTab();
+        return;
+      }
+      if (rawKey === 'Ctrl+Shift+T' || rawKey === '^+t' || rawKey === '^+T') {
+        nativeReopenTab();
+        return;
+      }
+
       if (rawKey) {
         const keyMap = {
           'Enter': '{ENTER}',
@@ -516,7 +546,17 @@ export function realDispatchInput(event) {
           'Ctrl+V': '^v',
           'Ctrl+Z': '^z',
           'Ctrl+A': '^a',
-          'Ctrl+S': '^s'
+          'Ctrl+S': '^s',
+          'Ctrl+F': '^f',
+          'Ctrl+P': '^p',
+          'Ctrl+N': '^n',
+          'F1': '{F1}',
+          'F2': '{F2}',
+          'F3': '{F3}',
+          'F4': '{F4}',
+          'F5': '{F5}',
+          'F11': '{F11}',
+          'F12': '{F12}'
         };
 
         let keysToSend = keyMap[rawKey] || rawKey;

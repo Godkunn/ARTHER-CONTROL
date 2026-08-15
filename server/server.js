@@ -214,23 +214,26 @@ function checkAntigravityApproval() {
   try {
     if (!fs.existsSync(brainPath)) return null;
     const entries = fs.readdirSync(brainPath, { withFileTypes: true });
-    const convDirs = entries.filter(e => e.isDirectory() && e.name !== 'temp' && e.name !== 'cache');
     
-    // Sort by most recently modified
-    convDirs.sort((a, b) => {
+    // Find all valid transcript files and sort by actual file mtime
+    const validTranscripts = [];
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const tPath = path.join(brainPath, e.name, '.system_generated', 'logs', 'transcript.jsonl');
       try {
-        const statA = fs.statSync(path.join(brainPath, a.name));
-        const statB = fs.statSync(path.join(brainPath, b.name));
-        return statB.mtimeMs - statA.mtimeMs;
-      } catch (_) { return 0; }
-    });
+        if (fs.existsSync(tPath)) {
+          const stat = fs.statSync(tPath);
+          if (stat.size > 0) {
+            validTranscripts.push({ dir: e.name, path: tPath, mtime: stat.mtimeMs });
+          }
+        }
+      } catch (_) {}
+    }
 
-    if (convDirs.length === 0) return null;
-    const latestConv = convDirs[0].name;
-    const transcriptFile = path.join(brainPath, latestConv, '.system_generated', 'logs', 'transcript.jsonl');
-    
-    if (!fs.existsSync(transcriptFile)) return null;
-    
+    if (validTranscripts.length === 0) return null;
+    validTranscripts.sort((a, b) => b.mtime - a.mtime);
+    const transcriptFile = validTranscripts[0].path;
+
     // Read up to 128KB from the end to ensure we never truncate large JSON lines
     const stat = fs.statSync(transcriptFile);
     if (stat.size === 0) return null;

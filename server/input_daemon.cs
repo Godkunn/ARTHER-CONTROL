@@ -513,6 +513,44 @@ namespace AetherControl
                         keybd_event(0x10, 0, 2, 0);
                         keybd_event(0x11, 0, 2, 0);
                     }
+                    else if (cmd == "browser_back")
+                    {
+                        keybd_event(0x12, 0, 0, 0); // Alt
+                        keybd_event(0x25, 0, 0, 0); // Left
+                        Thread.Sleep(30);
+                        keybd_event(0x25, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x12, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "browser_forward")
+                    {
+                        keybd_event(0x12, 0, 0, 0); // Alt
+                        keybd_event(0x27, 0, 0, 0); // Right
+                        Thread.Sleep(30);
+                        keybd_event(0x27, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x12, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "browser_refresh")
+                    {
+                        keybd_event(0x74, 0, 0, 0); // F5
+                        Thread.Sleep(30);
+                        keybd_event(0x74, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "browser_close_tab")
+                    {
+                        keybd_event(0x11, 0, 0, 0); // Ctrl
+                        keybd_event(0x57, 0, 0, 0); // W
+                        Thread.Sleep(30);
+                        keybd_event(0x57, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
+                    }
+                    else if (cmd == "browser_new_tab")
+                    {
+                        keybd_event(0x11, 0, 0, 0); // Ctrl
+                        keybd_event(0x54, 0, 0, 0); // T
+                        Thread.Sleep(30);
+                        keybd_event(0x54, 0, KEYEVENTF_KEYUP, 0);
+                        keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
+                    }
                     else if (cmd == "wake")
                     {
                         SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, (IntPtr)SC_MONITORPOWER, (IntPtr)(-1));
