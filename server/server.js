@@ -157,6 +157,7 @@ setInterval(() => {
   status.ramUsage = real.ramUsage;
   status.batteryPercent = real.batteryPercent;
   status.isCharging = real.isCharging;
+  status.isLocked = real.isLocked;
   status.activeWindow = real.activeWindow;
   status.runningApps = apps;
   status.telemetry.latency = Math.max(4, Math.min(60, (status.telemetry.latency || 12) + (Math.floor(Math.random() * 3) - 1)));
@@ -169,6 +170,7 @@ setInterval(() => {
     ram: real.ramUsage,
     battery: real.batteryPercent,
     isCharging: real.isCharging,
+    isLocked: real.isLocked,
     activeWindow: real.activeWindow,
     runningApps: apps,
     memInfo: { total: real.totalMemGB, used: real.usedMemGB, free: real.freeMemGB }
@@ -182,38 +184,62 @@ setInterval(() => {
 }, 2000);
 
 // ─────────────────────────────────────────────
-// ZERO-CPU REAL WINDOWS DIALOG/APPROVAL DETECTOR
+// BIDIRECTIONAL REAL WINDOWS DIALOG/APPROVAL DETECTOR & AUTO-DISMISSAL
 // ─────────────────────────────────────────────
-const detectedDialogIds = new Set();
+let activeSystemDialogId = null;
 
 setInterval(() => {
-  if (clients.size === 0) return;
-  const status = getSystemStatus();
-  const activeTitle = status.activeWindow || '';
-  // Only match specific Windows security/consent dialogs to prevent spam
-  if (activeTitle.match(/User Account Control|consent\.exe|Credential UI|Windows Security/i)) {
-    const dialogId = `dlg-${activeTitle.substring(0, 20)}`;
-    if (!detectedDialogIds.has(dialogId)) {
-      detectedDialogIds.add(dialogId);
-      const approval = {
-        id: dialogId,
-        app: 'Windows System',
-        title: activeTitle,
-        description: `Active prompt requires action: "${activeTitle}". Tap Allow on phone to confirm.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        severity: 'danger',
-        isSystemDialog: true,
-        actions: [
-          { id: 'yes', label: '1. Allow / Confirm', type: 'primary' },
-          { id: 'no', label: '2. Dismiss / Deny', type: 'danger' }
-        ]
-      };
-      status.pendingApprovals.unshift(approval);
-      broadcast({ type: 'approval_required', approval });
-      setTimeout(() => detectedDialogIds.delete(dialogId), 15000);
+  try {
+    if (clients.size === 0) return;
+    const status = getSystemStatus();
+    const rawTitle = status.activeWindow;
+    const activeTitle = typeof rawTitle === 'string' ? rawTitle : (rawTitle && typeof rawTitle === 'object' ? (rawTitle.title || rawTitle.name || '') : '');
+
+    if (!activeTitle) return;
+
+    const isDialogActive = /User Account Control|consent\.exe|Credential UI|Windows Security|Administrator|SmartScreen|Windows Defender|Confirm|Permission|Elevat/i.test(activeTitle);
+
+    if (isDialogActive) {
+      const dialogId = `dlg-${activeTitle.substring(0, 20)}`;
+      if (activeSystemDialogId !== dialogId) {
+        activeSystemDialogId = dialogId;
+        const approval = {
+          id: dialogId,
+          app: 'Windows System',
+          title: activeTitle,
+          description: `Active prompt requires elevation/action: "${activeTitle}". Tap Allow on phone to confirm.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          severity: 'danger',
+          isSystemDialog: true,
+          actions: [
+            { id: 'yes', label: '1. Allow / Confirm', type: 'primary' },
+            { id: 'no', label: '2. Dismiss / Deny', type: 'danger' }
+          ]
+        };
+        status.pendingApprovals = (status.pendingApprovals || []).filter(a => !a.isSystemDialog);
+        status.pendingApprovals.unshift(approval);
+        broadcast({ type: 'approval_required', approval });
+      }
+    } else if (activeSystemDialogId) {
+      const closedId = activeSystemDialogId;
+      activeSystemDialogId = null;
+      const existingIndex = (status.pendingApprovals || []).findIndex(a => a.id === closedId);
+      if (existingIndex !== -1) {
+        const removed = status.pendingApprovals.splice(existingIndex, 1)[0];
+        const resolved = {
+          ...removed,
+          status: 'DISMISSED_ON_LAPTOP',
+          selectedOption: 'Resolved on Laptop',
+          resolvedBy: 'Laptop Screen',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        };
+        if (!status.approvalHistory) status.approvalHistory = [];
+        status.approvalHistory.unshift(resolved);
+        broadcast({ type: 'approval_resolved', approval: resolved });
+      }
     }
-  }
-}, 1500);
+  } catch (_) {}
+}, 800);
 
 
 // ─────────────────────────────────────────────

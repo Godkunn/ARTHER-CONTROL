@@ -1,184 +1,344 @@
 // src/components/smartapps/SmartApps.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useAether } from '../../context/AetherContext';
-import { Globe, FileCode, Terminal, Download, ArrowLeft, ArrowRight, RefreshCw, Save, Check, Package, ChevronRight, Folder, File, ExternalLink, Play } from 'lucide-react';
+import {
+  Globe, FileCode, Terminal, Download, ArrowLeft, ArrowRight, RefreshCw,
+  Save, Check, Package, ChevronRight, Folder, File, ExternalLink, Play,
+  Search, Cpu, Monitor, Sparkles, Layers, Sliders, Music, MessageSquare,
+  Command, Wrench, Shield, Zap, X, CornerDownRight, PlayCircle, Eye,
+  Activity, Trash2, Maximize2, Minimize2, Bot, Brain, Film, Tv, Video,
+  BookOpen, FileText, Cloud, Palette, FileEdit, MessageCircle, Users,
+  PhoneCall, Calculator, Scissors, Brush, HelpCircle, GitBranch, Boxes
+} from 'lucide-react';
 import InstallManager from './InstallManager';
 
-const TABS = [
-  { id: 'browser', label: 'Browser', icon: Globe, color: 'aurora-blue' },
-  { id: 'vscode', label: 'VS Code', icon: FileCode, color: 'aurora-purple' },
-  { id: 'terminal', label: 'Terminal', icon: Terminal, color: 'aurora-emerald' },
-  { id: 'install', label: 'Install', icon: Package, color: 'aurora-cyan' },
+const HUBS = [
+  { id: 'browser', label: 'Web & Search', icon: Globe, color: 'aurora-blue', desc: 'Remote browsers & multi-engine search' },
+  { id: 'vscode', label: 'Dev Studio', icon: FileCode, color: 'aurora-purple', desc: 'VS Code workspaces & code editor' },
+  { id: 'productivity', label: 'Apps & Media', icon: Sparkles, color: 'aurora-pink', desc: 'Spotify, Discord, Notion & media' },
+  { id: 'system', label: 'System Tools', icon: Wrench, color: 'aurora-amber', desc: 'Taskmgr, PowerShell & diagnostics' },
+  { id: 'terminal', label: 'Terminal', icon: Terminal, color: 'aurora-emerald', desc: 'Live remote PowerShell console' },
+  { id: 'install', label: 'App Store', icon: Package, color: 'aurora-cyan', desc: 'Winget & direct setup installers' },
 ];
 
 export default function SmartApps() {
-  const { executeTerminalCommand, terminalLines, addLog, apiFetch } = useAether();
-  const [activeSurface, setActiveSurface] = useState('browser');
+  const { executeTerminalCommand, terminalLines, addLog, apiFetch, systemStatus, focusWindow, setScreenshareActive, setActiveTab } = useAether();
+  const [activeHub, setActiveHub] = useState('browser');
+  const [lastActionStatus, setLastActionStatus] = useState(null);
 
-  return (
-    <div className="p-2 max-w-4xl mx-auto space-y-2 pb-24">
-      {/* Tab Bar */}
-      <div className="glass-panel p-1 rounded-xl border border-obsidian-750 flex gap-1">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveSurface(tab.id)}
-            className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[10px] font-mono font-bold transition ${
-              activeSurface === tab.id
-                ? `bg-${tab.color}/20 text-${tab.color} border border-${tab.color}/30`
-                : 'text-titanium-500 hover:text-titanium-200'
-            }`}
-          >
-            <tab.icon className="w-3 h-3" />
-            <span className="hidden sm:inline">{tab.label}</span>
-          </button>
-        ))}
-      </div>
+  const runningApps = systemStatus.runningApps || [];
 
-      {activeSurface === 'browser' && <BrowserSurface apiFetch={apiFetch} addLog={addLog} />}
-      {activeSurface === 'vscode' && <VsCodeSurface apiFetch={apiFetch} addLog={addLog} />}
-      {activeSurface === 'terminal' && <TerminalSurface executeTerminalCommand={executeTerminalCommand} terminalLines={terminalLines} />}
-      {activeSurface === 'install' && <InstallManager apiFetch={apiFetch} />}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// BROWSER SURFACE
-// ─────────────────────────────────────────────────────────────────────────
-function BrowserSurface({ apiFetch, addLog, setActiveTab }) {
-  const { setScreenshareActive, screenshareActive } = useAether();
-  const [urlInput, setUrlInput] = useState('https://google.com');
-  const [history, setHistory] = useState(['https://google.com']);
-  const [histIdx, setHistIdx] = useState(0);
-  const [launching, setLaunching] = useState(false);
-  const [lastOpened, setLastOpened] = useState(null);
-  const [cmdResult, setCmdResult] = useState(null);
-
-  const navigate = async (e, overrideUrl) => {
-    e?.preventDefault();
-    const raw = (overrideUrl || urlInput).trim();
-    if (!raw) return;
-    let url = raw.startsWith('http') ? raw : 'https://' + raw;
-    setLaunching(true);
-    setCmdResult(null);
-    try {
-      const res = await apiFetch('/api/terminal', {
-        method: 'POST',
-        body: JSON.stringify({ cmd: `Start-Process "${url}"` })
-      });
-      setHistory(prev => [...prev.slice(0, histIdx + 1), url]);
-      setHistIdx(prev => prev + 1);
-      setLastOpened(url);
-      setCmdResult('opened');
-      addLog('Browser', `Launched on laptop: ${url}`);
-    } catch (_) {
-      setCmdResult('error');
-    }
-    setLaunching(false);
+  const triggerAppFeedback = (label, details = '') => {
+    setLastActionStatus({ label, details, time: Date.now() });
+    setTimeout(() => {
+      setLastActionStatus(prev => (prev?.time && Date.now() - prev.time >= 4000 ? null : prev));
+    }, 4500);
   };
 
-  const runCmd = async (cmd, label) => {
-    try {
-      await apiFetch('/api/terminal', { method: 'POST', body: JSON.stringify({ cmd }) });
-      addLog('Browser', label);
-      setCmdResult(label);
-    } catch (_) {}
-  };
-
-  const quickSites = [
-    { label: 'Google', url: 'https://google.com', icon: '🔍' },
-    { label: 'GitHub', url: 'https://github.com', icon: '🐱' },
-    { label: 'YouTube', url: 'https://youtube.com', icon: '▶' },
-    { label: 'ChatGPT', url: 'https://chat.openai.com', icon: '🤖' },
-    { label: 'npm', url: 'https://npmjs.com', icon: '📦' },
-    { label: 'Stack Overflow', url: 'https://stackoverflow.com', icon: '💬' },
-  ];
-
   return (
-    <div className="glass-panel p-3 rounded-xl border border-aurora-blue/20 space-y-3">
-      {/* How it works notice */}
-      <div className="flex items-start gap-2 p-2 rounded-lg bg-aurora-blue/5 border border-aurora-blue/15">
-        <Globe className="w-3.5 h-3.5 text-aurora-blue mt-0.5 shrink-0" />
-        <div className="space-y-0.5">
-          <p className="text-[10px] font-mono font-bold text-slate-200">Laptop Browser Remote Control</p>
-          <p className="text-[9px] font-mono text-titanium-400">
-            Commands run on your laptop's actual Chrome/Edge. To <strong className="text-aurora-cyan">see the result</strong>, use{' '}
-            <button onClick={() => { setScreenshareActive(true); }} className="text-aurora-cyan underline">Live Screen</button>{' '}
-            in the Screen tab — it captures your real laptop screen.
-          </p>
-        </div>
-      </div>
-
-      {/* Address bar */}
-      <form onSubmit={navigate} className="flex gap-1">
-        <button type="button" onClick={() => { if (histIdx > 0) { setHistIdx(h => h - 1); setUrlInput(history[histIdx - 1]); } }}
-          disabled={histIdx === 0} className="p-1.5 rounded-lg glass-card text-titanium-400 disabled:opacity-30">
-          <ArrowLeft className="w-3 h-3" />
-        </button>
-        <button type="button" onClick={() => { if (histIdx < history.length - 1) { setHistIdx(h => h + 1); setUrlInput(history[histIdx + 1]); } }}
-          disabled={histIdx >= history.length - 1} className="p-1.5 rounded-lg glass-card text-titanium-400 disabled:opacity-30">
-          <ArrowRight className="w-3 h-3" />
-        </button>
-        <input
-          type="text" value={urlInput}
-          onChange={e => setUrlInput(e.target.value)}
-          placeholder="Enter URL or search term..."
-          className="flex-1 bg-obsidian-950 border border-obsidian-750 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-200 focus:outline-none focus:border-aurora-blue"
-        />
-        <button type="submit" disabled={launching}
-          className="px-2.5 py-1.5 rounded-lg bg-aurora-blue/20 border border-aurora-blue/30 text-aurora-blue text-[10px] font-mono font-bold flex items-center gap-1">
-          {launching
-            ? <div className="w-3 h-3 border border-aurora-blue border-t-transparent rounded-full animate-spin" />
-            : <ExternalLink className="w-3 h-3" />}
-          Open
-        </button>
-      </form>
-
-      {/* Last action feedback */}
-      {lastOpened && (
-        <div className="flex items-center justify-between p-2 rounded-lg bg-aurora-emerald/5 border border-aurora-emerald/20">
-          <div className="min-w-0">
-            <p className="text-[9px] font-mono text-aurora-emerald">✓ Opened on laptop browser</p>
-            <p className="text-[8px] font-mono text-titanium-500 truncate">{lastOpened}</p>
+    <div className="p-2 sm:p-3 max-w-4xl mx-auto space-y-3 pb-24 animate-fadeIn">
+      {/* 1. TOP STATUS & ACTION FEEDBACK BANNER */}
+      {lastActionStatus && (
+        <div className="p-2.5 rounded-xl bg-gradient-to-r from-aurora-cyan/15 via-aurora-blue/15 to-aurora-purple/15 border border-aurora-cyan/30 flex items-center justify-between gap-2 shadow-lg animate-fadeIn">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-aurora-cyan animate-ping shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-mono font-bold text-slate-100 truncate">{lastActionStatus.label}</p>
+              {lastActionStatus.details && (
+                <p className="text-[9px] font-mono text-titanium-400 truncate">{lastActionStatus.details}</p>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => { setScreenshareActive(true); }}
-            className="ml-2 px-2 py-1 rounded bg-aurora-cyan/20 border border-aurora-cyan/30 text-aurora-cyan text-[9px] font-mono font-bold whitespace-nowrap flex items-center gap-1 shrink-0"
-          >
-            <span className="text-[10px]">👁</span> View Screen
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => {
+                setScreenshareActive(true);
+                setActiveTab('desktop');
+              }}
+              className="px-2.5 py-1 rounded-lg bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan text-[9px] font-mono font-bold hover:bg-aurora-cyan/30 flex items-center gap-1 transition"
+            >
+              <Eye className="w-3 h-3" />
+              <span>View Screen</span>
+            </button>
+            <button
+              onClick={() => setLastActionStatus(null)}
+              className="text-titanium-400 hover:text-white p-1"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Browser controls */}
-      <div>
-        <p className="text-[9px] font-mono text-titanium-500 mb-1.5">Browser Actions</p>
-        <div className="grid grid-cols-2 gap-1 mb-2">
+      {/* 2. LIVE ACTIVE WINDOWS & TASKBAR */}
+      <div className="glass-panel p-2.5 rounded-2xl border border-obsidian-750 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-mono font-bold text-slate-200 flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5 text-aurora-cyan animate-pulse" />
+            <span>Active Windows on Laptop ({runningApps.length})</span>
+          </span>
+          <span className="text-[9px] font-mono text-titanium-400">
+            Active: <strong className="text-aurora-cyan">{typeof systemStatus.activeWindow === 'string' ? systemStatus.activeWindow : 'Desktop'}</strong>
+          </span>
+        </div>
+
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {runningApps.length === 0 ? (
+            <span className="text-[9px] font-mono text-titanium-500 py-1">Connecting to window manager...</span>
+          ) : (
+            runningApps.map(app => {
+              const activeName = typeof systemStatus.activeWindow === 'string' ? systemStatus.activeWindow : '';
+              const isActive = app.active || app.name === activeName;
+              return (
+                <button
+                  key={app.id || app.pid || app.name}
+                  onClick={async () => {
+                    focusWindow(app.name);
+                    try {
+                      await apiFetch('/api/command', {
+                        method: 'POST',
+                        body: JSON.stringify({ command: 'FOCUS_WINDOW', payload: { name: app.name, pid: app.pid } })
+                      });
+                    } catch (_) {}
+                    triggerAppFeedback(`Focused window: ${app.name}`);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-mono font-bold whitespace-nowrap transition shrink-0 ${
+                    isActive
+                      ? 'bg-aurora-cyan/20 border-aurora-cyan text-aurora-cyan shadow-glow-cyan'
+                      : 'glass-card text-titanium-400 hover:text-slate-100 hover:border-obsidian-600'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-aurora-cyan" />
+                  <span>{app.name}</span>
+                  {app.pid && <span className="text-[8px] text-titanium-500 font-normal">#{app.pid}</span>}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* 3. CATEGORY HUB SELECTOR */}
+      <div className="glass-panel p-1 rounded-2xl border border-obsidian-750 grid grid-cols-3 sm:grid-cols-6 gap-1">
+        {HUBS.map(hub => {
+          const Icon = hub.icon;
+          const isSelected = activeHub === hub.id;
+          return (
+            <button
+              key={hub.id}
+              onClick={() => setActiveHub(hub.id)}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl transition text-center ${
+                isSelected
+                  ? 'bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan shadow-glow-cyan'
+                  : 'text-titanium-400 hover:text-slate-100 hover:bg-white/5'
+              }`}
+            >
+              <Icon className={`w-4 h-4 mb-0.5 ${isSelected ? 'text-aurora-cyan' : 'text-titanium-400'}`} />
+              <span className={`text-[9px] font-mono leading-tight ${isSelected ? 'font-bold text-slate-100' : ''}`}>
+                {hub.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 4. ACTIVE HUB SURFACE VIEW */}
+      {activeHub === 'browser' && <BrowserHub apiFetch={apiFetch} addLog={addLog} onTrigger={triggerAppFeedback} />}
+      {activeHub === 'vscode' && <VsCodeHub apiFetch={apiFetch} addLog={addLog} onTrigger={triggerAppFeedback} />}
+      {activeHub === 'productivity' && <ProductivityHub apiFetch={apiFetch} addLog={addLog} onTrigger={triggerAppFeedback} />}
+      {activeHub === 'system' && <SystemToolsHub apiFetch={apiFetch} addLog={addLog} onTrigger={triggerAppFeedback} />}
+      {activeHub === 'terminal' && <TerminalSurface executeTerminalCommand={executeTerminalCommand} terminalLines={terminalLines} />}
+      {activeHub === 'install' && <InstallManager apiFetch={apiFetch} />}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 1. WEB & SEARCH ENGINE HUB
+// ─────────────────────────────────────────────────────────────────────────
+function BrowserHub({ apiFetch, addLog, onTrigger }) {
+  const [urlInput, setUrlInput] = useState('');
+  const [searchEngine, setSearchEngine] = useState('google');
+  const [launching, setLaunching] = useState(false);
+
+  const ENGINES = [
+    { id: 'google', label: 'Google', searchUrl: 'https://www.google.com/search?q=', icon: Search },
+    { id: 'perplexity', label: 'Perplexity AI', searchUrl: 'https://www.perplexity.ai/search?q=', icon: Brain },
+    { id: 'youtube', label: 'YouTube', searchUrl: 'https://www.youtube.com/results?search_query=', icon: Film },
+    { id: 'github', label: 'GitHub', searchUrl: 'https://github.com/search?q=', icon: GitBranch },
+    { id: 'chatgpt', label: 'ChatGPT', searchUrl: 'https://chatgpt.com/?q=', icon: Bot },
+    { id: 'reddit', label: 'Reddit', searchUrl: 'https://www.reddit.com/search/?q=', icon: MessageSquare },
+  ];
+
+  const BOOKMARKS = [
+    { cat: 'AI Copilots', items: [
+      { name: 'ChatGPT', url: 'https://chatgpt.com', icon: Bot },
+      { name: 'Claude', url: 'https://claude.ai', icon: Sparkles },
+      { name: 'Perplexity', url: 'https://perplexity.ai', icon: Brain },
+      { name: 'Hugging Face', url: 'https://huggingface.co', icon: Cpu },
+    ]},
+    { cat: 'Developer Tools', items: [
+      { name: 'GitHub', url: 'https://github.com', icon: GitBranch },
+      { name: 'Stack Overflow', url: 'https://stackoverflow.com', icon: HelpCircle },
+      { name: 'NPM Registry', url: 'https://npmjs.com', icon: Package },
+      { name: 'MDN Docs', url: 'https://developer.mozilla.org', icon: BookOpen },
+      { name: 'Vercel', url: 'https://vercel.com', icon: Zap },
+      { name: 'Cloudflare', url: 'https://dash.cloudflare.com', icon: Cloud },
+    ]},
+    { cat: 'Media & Entertainment', items: [
+      { name: 'YouTube', url: 'https://youtube.com', icon: Film },
+      { name: 'Spotify Web', url: 'https://open.spotify.com', icon: Music },
+      { name: 'Twitch', url: 'https://twitch.tv', icon: Tv },
+      { name: 'Netflix', url: 'https://netflix.com', icon: Video },
+    ]},
+    { cat: 'Social & Communication', items: [
+      { name: 'WhatsApp Web', url: 'https://web.whatsapp.com', icon: PhoneCall },
+      { name: 'Discord', url: 'https://discord.com/app', icon: MessageCircle },
+      { name: 'Twitter / X', url: 'https://x.com', icon: Globe },
+      { name: 'Reddit', url: 'https://reddit.com', icon: MessageSquare },
+    ]}
+  ];
+
+  const handleOpenUrl = async (targetUrl) => {
+    if (!targetUrl) return;
+    let url = targetUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      const eng = ENGINES.find(e => e.id === searchEngine) || ENGINES[0];
+      url = eng.searchUrl + encodeURIComponent(url);
+    }
+
+    setLaunching(true);
+    try {
+      await apiFetch('/api/terminal', {
+        method: 'POST',
+        body: JSON.stringify({ cmd: `Start-Process "${url}"` })
+      });
+      addLog('Browser', `Launched URL: ${url}`);
+      onTrigger?.('Opened Web Browser', url);
+    } catch (_) {}
+    setLaunching(false);
+  };
+
+  const runBrowserAction = async (cmd, label) => {
+    try {
+      await apiFetch('/api/terminal', { method: 'POST', body: JSON.stringify({ cmd }) });
+      addLog('Browser', label);
+      onTrigger?.(`Browser: ${label}`);
+    } catch (_) {}
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* 1. Multi-Engine Search & Address Bar */}
+      <div className="glass-panel p-3 rounded-2xl border border-aurora-blue/30 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Globe className="w-4 h-4 text-aurora-blue" />
+            <span className="text-[11px] font-mono font-bold text-slate-100">Workstation Browser Remote</span>
+          </div>
+          <span className="text-[9px] font-mono text-titanium-400">Chrome / Edge / Firefox</span>
+        </div>
+
+        {/* Engine switcher chips */}
+        <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+          {ENGINES.map(eng => {
+            const EngineIcon = eng.icon;
+            return (
+              <button
+                key={eng.id}
+                onClick={() => setSearchEngine(eng.id)}
+                className={`px-2 py-1 rounded-lg text-[9px] font-mono whitespace-nowrap transition flex items-center gap-1.5 border ${
+                  searchEngine === eng.id
+                    ? 'bg-aurora-blue/25 border-aurora-blue text-aurora-blue font-bold'
+                    : 'glass-card border-obsidian-800 text-titanium-400 hover:text-white'
+                }`}
+              >
+                <EngineIcon className="w-3 h-3" />
+                <span>{eng.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* URL / Search Input */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleOpenUrl(urlInput);
+          }}
+          className="flex gap-1.5"
+        >
+          <input
+            type="text"
+            value={urlInput}
+            onChange={e => setUrlInput(e.target.value)}
+            placeholder={`Search ${ENGINES.find(e => e.id === searchEngine)?.label || 'Google'} or enter URL (e.g. github.com)...`}
+            className="flex-1 bg-obsidian-950 border border-obsidian-750 rounded-xl px-3 py-2 text-[10px] font-mono text-slate-100 placeholder-titanium-600 focus:outline-none focus:border-aurora-blue"
+          />
+          <button
+            type="submit"
+            disabled={launching || !urlInput.trim()}
+            className="px-3.5 py-2 rounded-xl bg-aurora-blue text-obsidian-950 font-mono font-bold text-[10px] flex items-center gap-1 hover:bg-blue-400 transition shrink-0 disabled:opacity-40"
+          >
+            {launching ? (
+              <div className="w-3 h-3 border border-obsidian-950 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <ExternalLink className="w-3 h-3" />
+            )}
+            <span>Open</span>
+          </button>
+        </form>
+
+        {/* Browser Quick Control Keys */}
+        <div className="grid grid-cols-4 gap-1.5 pt-1">
           {[
-            { label: '← Back', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.GoBack() }`, icon: '←' },
-            { label: '→ Forward', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.GoForward() }`, icon: '→' },
-            { label: '⟳ Reload', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.Refresh() }`, icon: '⟳' },
-            { label: '✕ Close Tab', cmd: `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^w")`, icon: '✕' },
-          ].map(b => (
-            <button key={b.label} onClick={() => runCmd(b.cmd, b.label)}
-              className="py-1.5 rounded-lg glass-card text-[9px] font-mono text-titanium-300 hover:text-white transition text-center">
-              {b.label}
+            { label: '← Back', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.GoBack() }` },
+            { label: '→ Forward', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.GoForward() }` },
+            { label: '⟳ Refresh', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.Refresh() }` },
+            { label: '✕ Close Tab', cmd: `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^w")` },
+          ].map(btn => (
+            <button
+              key={btn.label}
+              onClick={() => runBrowserAction(btn.cmd, btn.label)}
+              className="py-1.5 rounded-lg glass-card text-[9px] font-mono text-titanium-300 hover:text-white hover:border-aurora-blue/40 text-center transition active:scale-95"
+            >
+              {btn.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Quick sites */}
-      <div>
-        <p className="text-[9px] font-mono text-titanium-500 mb-1.5">Quick Open</p>
-        <div className="grid grid-cols-3 gap-1">
-          {quickSites.map(site => (
-            <button key={site.url}
-              onClick={() => { setUrlInput(site.url); navigate(null, site.url); }}
-              className="flex items-center gap-1 py-1.5 px-2 rounded-lg glass-card text-[9px] font-mono text-titanium-300 hover:text-white transition">
-              <span>{site.icon}</span><span>{site.label}</span>
-            </button>
+      {/* 2. Curated Web App Directory */}
+      <div className="glass-panel p-3 rounded-2xl border border-obsidian-750 space-y-3">
+        <h3 className="text-[10px] font-mono text-titanium-300 uppercase tracking-wider">Quick Web Apps & Portals</h3>
+
+        <div className="space-y-3">
+          {BOOKMARKS.map(section => (
+            <div key={section.cat} className="space-y-1.5">
+              <p className="text-[9px] font-mono text-titanium-500 font-bold uppercase">{section.cat}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {section.items.map(site => {
+                  const SiteIcon = site.icon;
+                  return (
+                    <button
+                      key={site.name}
+                      onClick={() => handleOpenUrl(site.url)}
+                      className="flex items-center gap-2 p-2 rounded-xl glass-card hover:border-aurora-blue/40 hover:bg-aurora-blue/5 text-left transition group active:scale-95"
+                    >
+                      <div className="p-1.5 rounded-lg bg-obsidian-850 text-aurora-blue group-hover:bg-aurora-blue/20 transition shrink-0">
+                        <SiteIcon className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-mono font-bold text-slate-200 group-hover:text-aurora-blue truncate">
+                          {site.name}
+                        </p>
+                        <p className="text-[8px] font-mono text-titanium-500 truncate">{site.url.replace(/^https?:\/\//, '')}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -186,13 +346,11 @@ function BrowserSurface({ apiFetch, addLog, setActiveTab }) {
   );
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────
-// VS CODE WORKSPACE SURFACE
+// 2. DEV STUDIO & VS CODE WORKSPACE HUB
 // ─────────────────────────────────────────────────────────────────────────
-function VsCodeSurface({ apiFetch, addLog }) {
+function VsCodeHub({ apiFetch, addLog, onTrigger }) {
   const [customPathInput, setCustomPathInput] = useState('C:/Users/Hp/Desktop/AETHER CONTROL');
-  const [tunnelStatus, setTunnelStatus] = useState(null);
   const [entries, setEntries] = useState([]);
   const [parts, setParts] = useState([]);
   const [currentPath, setCurrentPath] = useState('C:/Users/Hp/Desktop/AETHER CONTROL');
@@ -201,8 +359,6 @@ function VsCodeSurface({ apiFetch, addLog }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [launchingCode, setLaunchingCode] = useState(false);
-  const [runningFile, setRunningFile] = useState(false);
 
   const QUICK_PROJECTS = [
     { label: 'AETHER CONTROL', path: 'C:/Users/Hp/Desktop/AETHER CONTROL' },
@@ -249,67 +405,55 @@ function VsCodeSurface({ apiFetch, addLog }) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
         addLog('VS Code', `Saved: ${openFile.name}`);
+        onTrigger?.('Saved File on Laptop', openFile.name);
       } else setError(data.error);
     } catch (err) { setError('Save failed'); }
   };
 
   const launchVSCodeDesktop = async (targetPath = null) => {
     const pathToOpen = (targetPath || customPathInput || currentPath).trim();
-    setLaunchingCode(true);
     try {
       await apiFetch('/api/terminal', {
         method: 'POST',
         body: JSON.stringify({ cmd: `code "${pathToOpen.replace(/\//g, '\\')}"` })
       });
       addLog('VS Code', `Launched VS Code on laptop for: ${pathToOpen}`);
-    } catch (_) {}
-    setLaunchingCode(false);
-  };
-
-  const startVsCodeTunnel = async () => {
-    setTunnelStatus('Starting VS Code Web Tunnel on laptop...');
-    try {
-      await apiFetch('/api/terminal', {
-        method: 'POST',
-        body: JSON.stringify({ cmd: `code tunnel --accept-server-license-terms` })
-      });
-      addLog('VS Code', 'Triggered VS Code Web Tunnel');
+      onTrigger?.('Launched VS Code on PC', pathToOpen);
     } catch (_) {}
   };
 
-  const runCurrentFile = async () => {
-    if (!openFile) return;
-    setRunningFile(true);
+  const runDevScript = async (cmd, label) => {
     try {
-      const isJs = openFile.name.endsWith('.js');
-      const isPy = openFile.name.endsWith('.py');
-      const runner = isJs ? 'node' : isPy ? 'python' : 'powershell';
       await apiFetch('/api/terminal', {
         method: 'POST',
-        body: JSON.stringify({ cmd: `${runner} "${openFile.path.replace(/\//g, '\\')}"` })
+        body: JSON.stringify({ cmd, cwd: currentPath })
       });
-      addLog('VS Code', `Executed: ${openFile.name}`);
+      addLog('Dev', label);
+      onTrigger?.(`Ran Dev Script: ${label}`);
     } catch (_) {}
-    setRunningFile(false);
   };
 
   useEffect(() => { loadDir('C:/Users/Hp/Desktop/AETHER CONTROL'); }, []);
 
-  const TEXT_EXTS = ['.js', '.jsx', '.ts', '.tsx', '.py', '.json', '.md', '.txt', '.css', '.html', '.env', '.sh', '.ps1', '.yml', '.yaml', '.toml', '.xml', '.csv', '.log', '.ini', '.cfg'];
+  const TEXT_EXTS = ['.js', '.jsx', '.ts', '.tsx', '.py', '.json', '.md', '.txt', '.css', '.html', '.env', '.sh', '.ps1', '.yml', '.yaml', '.toml', '.xml', '.csv', '.log'];
   const isEditable = (name) => TEXT_EXTS.some(ext => name.toLowerCase().endsWith(ext));
 
   return (
-    <div className="glass-panel p-3 rounded-xl border border-aurora-purple/20 space-y-2.5">
-      {/* 1. Custom Project Launcher Bar */}
-      <div className="bg-obsidian-950 p-2.5 rounded-lg border border-obsidian-800 space-y-2">
+    <div className="space-y-3">
+      {/* 1. Project Launch Bar */}
+      <div className="glass-panel p-3 rounded-2xl border border-aurora-purple/30 space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-mono font-bold text-slate-200 flex items-center gap-1">
-            <FileCode className="w-3.5 h-3.5 text-aurora-purple" />
-            <span>Launch Any Project in VS Code on Laptop</span>
-          </span>
-          <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-aurora-purple/15 text-aurora-purple border border-aurora-purple/30">
-            CLI: code v1.133
-          </span>
+          <div className="flex items-center gap-1.5">
+            <FileCode className="w-4 h-4 text-aurora-purple" />
+            <span className="text-[11px] font-mono font-bold text-slate-100">VS Code & Project Studio</span>
+          </div>
+          <button
+            onClick={() => launchVSCodeDesktop(currentPath)}
+            className="px-2 py-1 rounded-lg bg-aurora-purple/20 border border-aurora-purple/40 text-aurora-purple text-[9px] font-mono font-bold flex items-center gap-1 hover:bg-aurora-purple/30 transition"
+          >
+            <ExternalLink className="w-3 h-3" />
+            <span>Open in VS Code App</span>
+          </button>
         </div>
 
         <form onSubmit={(e) => { e.preventDefault(); launchVSCodeDesktop(customPathInput); }} className="flex gap-1.5">
@@ -317,29 +461,26 @@ function VsCodeSurface({ apiFetch, addLog }) {
             type="text"
             value={customPathInput}
             onChange={e => setCustomPathInput(e.target.value)}
-            placeholder="Enter any project/folder path (e.g. C:/Users/Hp/Desktop/...)"
-            className="flex-1 bg-obsidian-900 border border-obsidian-750 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-slate-100 placeholder-titanium-600 focus:outline-none focus:border-aurora-purple"
+            placeholder="Enter any project/folder path..."
+            className="flex-1 bg-obsidian-950 border border-obsidian-750 rounded-xl px-3 py-2 text-[10px] font-mono text-slate-100 placeholder-titanium-600 focus:outline-none focus:border-aurora-purple"
           />
           <button
             type="submit"
-            disabled={launchingCode || !customPathInput.trim()}
-            className="px-3 py-1.5 rounded-lg bg-aurora-purple/20 border border-aurora-purple/50 text-aurora-purple hover:bg-aurora-purple/30 text-[10px] font-mono font-bold flex items-center gap-1 transition shrink-0"
-            title="Launch VS Code application on laptop"
+            className="px-3.5 py-2 rounded-xl bg-aurora-purple text-obsidian-950 font-mono font-bold text-[10px] hover:bg-purple-400 transition shrink-0"
           >
-            <ExternalLink className="w-3 h-3" />
-            <span>{launchingCode ? 'Launching...' : 'Open on PC'}</span>
+            Launch
           </button>
         </form>
 
-        {/* Quick project buttons */}
-        <div className="flex gap-1 overflow-x-auto pb-0.5">
+        {/* Quick project chips */}
+        <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
           {QUICK_PROJECTS.map(p => (
             <button
               key={p.path}
               onClick={() => { setCustomPathInput(p.path); loadDir(p.path); }}
-              className={`px-2 py-0.5 rounded text-[8px] font-mono whitespace-nowrap transition border ${
+              className={`px-2 py-1 rounded-lg text-[9px] font-mono whitespace-nowrap transition border ${
                 currentPath === p.path
-                  ? 'bg-aurora-purple/20 border-aurora-purple text-aurora-purple font-bold'
+                  ? 'bg-aurora-purple/25 border-aurora-purple text-aurora-purple font-bold'
                   : 'glass-card border-obsidian-800 text-titanium-400 hover:text-white'
               }`}
             >
@@ -347,134 +488,289 @@ function VsCodeSurface({ apiFetch, addLog }) {
             </button>
           ))}
         </div>
-      </div>
 
-      {/* 2. File Explorer / Editor Header */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-obsidian-750">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[10px] font-mono font-bold text-slate-200 truncate">
-            {openFile ? openFile.name : `Explorer: ${currentPath}`}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {openFile ? (
-            <>
-              <button
-                onClick={runCurrentFile}
-                disabled={runningFile}
-                className="px-2 py-1 rounded bg-aurora-emerald/20 border border-aurora-emerald/40 text-aurora-emerald text-[9px] font-mono font-bold flex items-center gap-1"
-                title="Run active file with node/python on laptop"
-              >
-                <Play className="w-2.5 h-2.5" />
-                <span>Run</span>
-              </button>
-              <button
-                onClick={saveFile}
-                className={`px-2 py-1 rounded text-[9px] font-mono font-bold flex items-center gap-1 border transition ${
-                  saved ? 'bg-aurora-emerald/20 border-aurora-emerald text-aurora-emerald' : 'bg-aurora-purple/20 border-aurora-purple/40 text-aurora-purple'
-                }`}
-              >
-                {saved ? <Check className="w-2.5 h-2.5" /> : <Save className="w-2.5 h-2.5" />}
-                <span>{saved ? 'Saved' : 'Save'}</span>
-              </button>
-              <button onClick={() => setOpenFile(null)} className="text-[9px] font-mono text-titanium-400 px-2 py-1 rounded glass-card">
-                Close
-              </button>
-            </>
-          ) : (
+        {/* Dev Quick Actions (NPM, Git) */}
+        <div className="grid grid-cols-4 gap-1.5 pt-1">
+          {[
+            { label: 'npm run dev', cmd: 'npm run dev' },
+            { label: 'git status', cmd: 'git status' },
+            { label: 'git pull', cmd: 'git pull' },
+            { label: 'npm test', cmd: 'npm test' },
+          ].map(act => (
             <button
-              onClick={() => launchVSCodeDesktop(currentPath)}
-              className="px-2 py-1 rounded bg-aurora-blue/20 border border-aurora-blue/30 text-aurora-blue text-[9px] font-mono font-bold flex items-center gap-1 hover:bg-aurora-blue/30 transition"
-              title="Open current folder in VS Code on laptop"
+              key={act.label}
+              onClick={() => runDevScript(act.cmd, act.label)}
+              className="py-1.5 rounded-lg glass-card text-[9px] font-mono text-titanium-300 hover:text-white hover:border-aurora-purple/40 text-center transition active:scale-95"
             >
-              <ExternalLink className="w-2.5 h-2.5" />
-              <span>Open This in PC</span>
+              {act.label}
             </button>
-          )}
+          ))}
         </div>
       </div>
 
-      {/* Breadcrumb Path */}
-      {!openFile && (
-        <div className="flex items-center gap-0.5 overflow-x-auto pb-0.5">
-          {parts.map((part, i) => {
-            const breadPath = parts.slice(0, i + 1).join('/');
-            const fullPath = breadPath.match(/^[A-Za-z]:/) ? breadPath : '/' + breadPath;
-            return (
-              <React.Fragment key={i}>
-                {i > 0 && <ChevronRight className="w-2.5 h-2.5 text-obsidian-600 shrink-0" />}
+      {/* 2. File Explorer / Editor */}
+      <div className="glass-panel p-3 rounded-2xl border border-obsidian-750 space-y-2.5">
+        <div className="flex items-center justify-between border-b border-obsidian-750 pb-2">
+          <span className="text-[10px] font-mono font-bold text-slate-200 truncate">
+            {openFile ? openFile.name : `Folder: ${currentPath}`}
+          </span>
+
+          <div className="flex items-center gap-1.5">
+            {openFile ? (
+              <>
                 <button
-                  onClick={() => loadDir(fullPath)}
-                  className="text-[9px] font-mono text-titanium-400 hover:text-aurora-purple whitespace-nowrap px-1 py-0.5 rounded hover:bg-obsidian-750 transition"
+                  onClick={saveFile}
+                  className={`px-2.5 py-1 rounded-lg text-[9px] font-mono font-bold flex items-center gap-1 border transition ${
+                    saved ? 'bg-aurora-emerald/20 border-aurora-emerald text-aurora-emerald' : 'bg-aurora-purple/20 border-aurora-purple/40 text-aurora-purple'
+                  }`}
                 >
-                  {part}
+                  {saved ? <Check className="w-3 h-3" /> : <Save className="w-3 h-3" />}
+                  <span>{saved ? 'Saved' : 'Save'}</span>
                 </button>
-              </React.Fragment>
-            );
-          })}
+                <button
+                  onClick={() => setOpenFile(null)}
+                  className="text-[9px] font-mono text-titanium-400 px-2 py-1 rounded-lg glass-card hover:text-white"
+                >
+                  Close
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
-      )}
 
-      {error && <div className="text-[9px] font-mono text-red-400 bg-red-950/30 border border-red-800/30 rounded px-2 py-1">{error}</div>}
+        {/* Breadcrumbs */}
+        {!openFile && (
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+            {parts.map((part, i) => {
+              const breadPath = parts.slice(0, i + 1).join('/');
+              const fullPath = breadPath.match(/^[A-Za-z]:/) ? breadPath : '/' + breadPath;
+              return (
+                <React.Fragment key={i}>
+                  {i > 0 && <ChevronRight className="w-3 h-3 text-obsidian-600 shrink-0" />}
+                  <button
+                    onClick={() => loadDir(fullPath)}
+                    className="text-[9px] font-mono text-titanium-400 hover:text-aurora-purple whitespace-nowrap px-1.5 py-0.5 rounded hover:bg-obsidian-800 transition"
+                  >
+                    {part}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        )}
 
-      {/* Code Editor */}
-      {openFile ? (
-        <div className="relative">
+        {/* File Content / List */}
+        {openFile ? (
           <textarea
             value={editContent}
             onChange={e => setEditContent(e.target.value)}
-            className="w-full h-80 bg-obsidian-950 border border-obsidian-800 rounded-lg p-2.5 text-[10px] font-mono text-slate-100 focus:outline-none focus:border-aurora-purple/60 resize-none leading-relaxed font-medium"
+            className="w-full h-80 bg-obsidian-950 border border-obsidian-800 rounded-xl p-3 text-[10px] font-mono text-slate-100 focus:outline-none focus:border-aurora-purple resize-none leading-relaxed"
             spellCheck={false}
           />
-        </div>
-      ) : loading ? (
-        <div className="flex items-center justify-center h-36">
-          <div className="w-4 h-4 border-2 border-aurora-purple border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : (
-        <div className="space-y-0.5 max-h-80 overflow-y-auto divide-y divide-obsidian-850">
-          {entries.length === 0 && <p className="text-[9px] font-mono text-titanium-600 text-center py-6">Empty directory</p>}
-          {entries.map(entry => {
-            const editable = isEditable(entry.name);
-            return (
-              <div
-                key={entry.path}
-                className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-obsidian-800/70 transition group cursor-pointer"
-                onClick={() => {
-                  if (entry.type === 'folder') loadDir(entry.path);
-                  else if (editable) loadFile(entry.path, entry.name);
-                }}
-              >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {entry.type === 'folder' ? (
-                    <Folder className="w-3 h-3 text-aurora-cyan shrink-0" />
-                  ) : (
-                    <File className={`w-3 h-3 shrink-0 ${editable ? 'text-aurora-purple' : 'text-titanium-500'}`} />
-                  )}
-                  <span className={`text-[10px] font-mono truncate ${entry.type === 'folder' ? 'text-slate-200 font-semibold' : editable ? 'text-titanium-200 group-hover:text-white' : 'text-titanium-500'}`}>
-                    {entry.name}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] font-mono text-titanium-600">{entry.size}</span>
-                  {editable && (
-                    <span className="text-[8px] font-mono text-aurora-purple bg-aurora-purple/10 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">
-                      Edit
+        ) : loading ? (
+          <div className="flex items-center justify-center h-36">
+            <div className="w-5 h-5 border-2 border-aurora-purple border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-0.5 max-h-72 overflow-y-auto divide-y divide-obsidian-850">
+            {entries.length === 0 && <p className="text-[9px] font-mono text-titanium-600 text-center py-6">Directory is empty</p>}
+            {entries.map(entry => {
+              const editable = isEditable(entry.name);
+              return (
+                <div
+                  key={entry.path}
+                  onClick={() => {
+                    if (entry.type === 'folder') loadDir(entry.path);
+                    else if (editable) loadFile(entry.path, entry.name);
+                  }}
+                  className="flex items-center justify-between px-2.5 py-2 rounded-lg hover:bg-obsidian-800/70 transition cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {entry.type === 'folder' ? (
+                      <Folder className="w-3.5 h-3.5 text-aurora-cyan shrink-0" />
+                    ) : (
+                      <File className={`w-3.5 h-3.5 shrink-0 ${editable ? 'text-aurora-purple' : 'text-titanium-500'}`} />
+                    )}
+                    <span className={`text-[10px] font-mono truncate ${entry.type === 'folder' ? 'text-slate-200 font-semibold' : 'text-titanium-300'}`}>
+                      {entry.name}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-mono text-titanium-600">{entry.size}</span>
+                    {editable && (
+                      <span className="text-[8px] font-mono text-aurora-purple bg-aurora-purple/10 px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 transition">
+                        Edit
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// TERMINAL SURFACE
+// 3. PRODUCTIVITY & MEDIA LAUNCHER HUB
+// ─────────────────────────────────────────────────────────────────────────
+function ProductivityHub({ apiFetch, addLog, onTrigger }) {
+  const APPS_LIST = [
+    { cat: 'Media & Streaming', items: [
+      { name: 'Spotify', exe: 'spotify', desc: 'Music & Podcasts', icon: Music },
+      { name: 'VLC Player', exe: 'vlc', desc: 'Video Player', icon: Film },
+      { name: 'Media Player', exe: 'wmplayer', desc: 'Default Player', icon: Tv },
+    ]},
+    { cat: 'Productivity & Notes', items: [
+      { name: 'Notion', exe: 'notion', desc: 'Workspace & Docs', icon: FileText },
+      { name: 'Obsidian', exe: 'obsidian', desc: 'Knowledge Base', icon: Boxes },
+      { name: 'Figma', exe: 'figma', desc: 'UI/UX Design', icon: Palette },
+      { name: 'Notepad', exe: 'notepad', desc: 'Text Editor', icon: FileEdit },
+    ]},
+    { cat: 'Communication', items: [
+      { name: 'Discord', exe: 'discord', desc: 'Voice & Chat', icon: MessageCircle },
+      { name: 'Slack', exe: 'slack', desc: 'Team Chat', icon: Users },
+      { name: 'WhatsApp', exe: 'whatsapp', desc: 'Messaging', icon: PhoneCall },
+      { name: 'Zoom', exe: 'zoom', desc: 'Video Meetings', icon: Video },
+    ]},
+    { cat: 'Quick Utilities', items: [
+      { name: 'Calculator', exe: 'calc', desc: 'Programmer Calc', icon: Calculator },
+      { name: 'Paint', exe: 'mspaint', desc: 'Drawing & Edit', icon: Brush },
+      { name: 'Snipping Tool', exe: 'snippingtool', desc: 'Screen Capture', icon: Scissors },
+      { name: 'File Explorer', exe: 'explorer', desc: 'Windows Drives', icon: Folder },
+    ]}
+  ];
+
+  const launchNativeApp = async (app) => {
+    try {
+      await apiFetch('/api/terminal', {
+        method: 'POST',
+        body: JSON.stringify({ cmd: `Start-Process "${app.exe}" -ErrorAction SilentlyContinue` })
+      });
+      addLog('Apps', `Launched ${app.name} on PC`);
+      onTrigger?.(`Launched ${app.name}`, `Running ${app.exe}.exe on laptop`);
+    } catch (_) {}
+  };
+
+  return (
+    <div className="glass-panel p-3 rounded-2xl border border-aurora-pink/30 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-aurora-pink" />
+          <span className="text-[11px] font-mono font-bold text-slate-100">Productivity & Native Desktop Apps</span>
+        </div>
+        <span className="text-[9px] font-mono text-titanium-400">1-Tap Hardware Launch</span>
+      </div>
+
+      <div className="space-y-4">
+        {APPS_LIST.map(group => (
+          <div key={group.cat} className="space-y-1.5">
+            <p className="text-[9px] font-mono text-titanium-500 font-bold uppercase">{group.cat}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {group.items.map(item => {
+                const ItemIcon = item.icon;
+                return (
+                  <button
+                    key={item.name}
+                    onClick={() => launchNativeApp(item)}
+                    className="p-2.5 rounded-xl glass-card hover:border-aurora-pink/50 hover:bg-aurora-pink/5 text-left transition group active:scale-95 flex flex-col justify-between space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="p-1.5 rounded-lg bg-obsidian-850 text-aurora-pink group-hover:bg-aurora-pink/20 transition">
+                        <ItemIcon className="w-4 h-4" />
+                      </div>
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-obsidian-850 text-titanium-400 group-hover:text-aurora-pink transition">
+                        RUN
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono font-bold text-slate-200 group-hover:text-aurora-pink truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-[8px] font-mono text-titanium-500 truncate">{item.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4. SYSTEM TOOLS & DIAGNOSTICS HUB
+// ─────────────────────────────────────────────────────────────────────────
+function SystemToolsHub({ apiFetch, addLog, onTrigger }) {
+  const TOOLS = [
+    { name: 'Task Manager', cmd: 'taskmgr', icon: Cpu, desc: 'Process & Resource Monitor' },
+    { name: 'PowerShell (Admin)', cmd: 'powershell -NoExit', icon: Terminal, desc: 'Windows Shell Prompt' },
+    { name: 'Command Prompt', cmd: 'cmd /k', icon: Command, desc: 'Classic Windows CMD' },
+    { name: 'Device Manager', cmd: 'devmgmt.msc', icon: Sliders, desc: 'Hardware & Drivers' },
+    { name: 'Registry Editor', cmd: 'regedit', icon: Shield, desc: 'Windows Reg Configuration' },
+    { name: 'Disk Cleanup', cmd: 'cleanmgr', icon: Trash2, desc: 'Free Up SSD / HDD Space' },
+    { name: 'Network Adapters', cmd: 'ncpa.cpl', icon: Globe, desc: 'Wi-Fi & LAN Settings' },
+    { name: 'Windows Services', cmd: 'services.msc', icon: Wrench, desc: 'Background Service Daemon' },
+    { name: 'Windows Settings', cmd: 'Start-Process ms-settings:', icon: Zap, desc: 'System Settings Panel' },
+    { name: 'DirectX Diagnostics', cmd: 'dxdiag', icon: Monitor, desc: 'GPU & Display Specs' },
+  ];
+
+  const launchTool = async (tool) => {
+    try {
+      await apiFetch('/api/terminal', {
+        method: 'POST',
+        body: JSON.stringify({ cmd: `Start-Process ${tool.cmd} -ErrorAction SilentlyContinue` })
+      });
+      addLog('System', `Launched: ${tool.name}`);
+      onTrigger?.(`Launched ${tool.name}`, tool.cmd);
+    } catch (_) {}
+  };
+
+  return (
+    <div className="glass-panel p-3 rounded-2xl border border-aurora-amber/30 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Wrench className="w-4 h-4 text-aurora-amber" />
+          <span className="text-[11px] font-mono font-bold text-slate-100">Windows System & Diagnostics Toolkit</span>
+        </div>
+        <span className="text-[9px] font-mono text-titanium-400">Admin Level</span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {TOOLS.map(tool => {
+          const Icon = tool.icon;
+          return (
+            <button
+              key={tool.name}
+              onClick={() => launchTool(tool)}
+              className="p-3 rounded-xl glass-card hover:border-aurora-amber/50 hover:bg-aurora-amber/5 text-left transition group active:scale-95 flex flex-col justify-between space-y-2"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-1.5 rounded-lg bg-obsidian-850 text-aurora-amber group-hover:bg-aurora-amber/20 transition">
+                  <Icon className="w-4 h-4" />
+                </div>
+                <ExternalLink className="w-3 h-3 text-titanium-500 group-hover:text-aurora-amber transition" />
+              </div>
+              <div>
+                <p className="text-[10px] font-mono font-bold text-slate-200 group-hover:text-aurora-amber truncate">
+                  {tool.name}
+                </p>
+                <p className="text-[8px] font-mono text-titanium-500 truncate">{tool.desc}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// 5. TERMINAL SURFACE
 // ─────────────────────────────────────────────────────────────────────────
 function TerminalSurface({ executeTerminalCommand, terminalLines }) {
   const [cmd, setCmd] = useState('');
@@ -511,34 +807,36 @@ function TerminalSurface({ executeTerminalCommand, terminalLines }) {
     }
   };
 
-  const quickCmds = ['dir', 'ls', 'git status', 'npm run dev', 'npm run server', 'ipconfig', 'tasklist', 'cls'];
+  const quickCmds = ['dir', 'git status', 'npm run dev', 'ipconfig', 'tasklist', 'cls'];
 
   return (
-    <div className="glass-panel p-3 rounded-xl border border-aurora-emerald/20 space-y-2">
+    <div className="glass-panel p-3 rounded-2xl border border-aurora-emerald/30 space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Terminal className="w-3.5 h-3.5 text-aurora-emerald" />
-          <span className="text-[10px] font-mono font-bold text-slate-200">PowerShell Terminal</span>
+          <Terminal className="w-4 h-4 text-aurora-emerald" />
+          <span className="text-[11px] font-mono font-bold text-slate-100">Live PowerShell Console</span>
         </div>
         <span className="text-[9px] font-mono text-titanium-500 truncate max-w-[140px]">{cwd}</span>
       </div>
 
-      {/* Quick commands */}
-      <div className="flex gap-1 overflow-x-auto pb-0.5">
+      {/* Quick command buttons */}
+      <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
         {quickCmds.map(q => (
-          <button key={q}
+          <button
+            key={q}
             onClick={() => { setCmd(q); }}
-            className="px-2 py-1 rounded glass-card text-[9px] font-mono text-titanium-400 hover:text-white whitespace-nowrap transition">
+            className="px-2 py-1 rounded-lg glass-card text-[9px] font-mono text-titanium-400 hover:text-white whitespace-nowrap transition"
+          >
             {q}
           </button>
         ))}
       </div>
 
-      {/* Terminal output */}
-      <div ref={termRef} className="bg-black rounded-lg border border-obsidian-800 p-2 h-60 overflow-y-auto font-mono text-[10px] space-y-0.5">
+      {/* Terminal Output Window */}
+      <div ref={termRef} className="bg-black rounded-xl border border-obsidian-800 p-3 h-64 overflow-y-auto font-mono text-[10px] space-y-0.5">
         {terminalLines.map(line => (
           <div key={line.id} className={
-            line.type === 'cmd' ? 'text-aurora-cyan' :
+            line.type === 'cmd' ? 'text-aurora-cyan font-bold' :
             line.type === 'stderr' ? 'text-red-400' :
             line.type === 'exit' ? 'text-titanium-500 italic' :
             line.type === 'system' ? 'text-aurora-emerald/70 italic' :
@@ -549,19 +847,25 @@ function TerminalSurface({ executeTerminalCommand, terminalLines }) {
         ))}
       </div>
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="flex gap-1">
-        <span className="text-[10px] font-mono text-aurora-emerald self-center">PS&gt;</span>
+      {/* Input Line */}
+      <form onSubmit={handleSubmit} className="flex gap-1.5">
+        <span className="text-[10px] font-mono text-aurora-emerald font-bold self-center">PS&gt;</span>
         <input
-          type="text" value={cmd}
+          type="text"
+          value={cmd}
           onChange={e => setCmd(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Enter PowerShell command..."
-          className="flex-1 bg-obsidian-950 border border-obsidian-750 rounded-lg px-2 py-1.5 text-[10px] font-mono text-slate-100 focus:outline-none focus:border-aurora-emerald"
-          autoComplete="off" spellCheck={false}
+          placeholder="Enter command (e.g. dir, npm test, python script.py)..."
+          className="flex-1 bg-obsidian-950 border border-obsidian-750 rounded-xl px-3 py-2 text-[10px] font-mono text-slate-100 focus:outline-none focus:border-aurora-emerald"
+          autoComplete="off"
+          spellCheck={false}
         />
-        <button type="submit" className="px-2.5 py-1.5 rounded-lg bg-aurora-emerald/20 border border-aurora-emerald/30 text-aurora-emerald text-[10px] font-mono font-bold flex items-center gap-1">
-          <Play className="w-2.5 h-2.5" /> Run
+        <button
+          type="submit"
+          className="px-3.5 py-2 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-[10px] flex items-center gap-1 hover:bg-emerald-400 transition shrink-0"
+        >
+          <Play className="w-3 h-3" />
+          <span>Run</span>
         </button>
       </form>
     </div>

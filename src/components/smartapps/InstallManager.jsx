@@ -1,15 +1,15 @@
 // src/components/smartapps/InstallManager.jsx
 import React, { useState, useEffect } from 'react';
-import { Package, Search, Download, CheckCircle, AlertCircle, Play, Sparkles, FolderDown, Monitor, ArrowRight, ExternalLink, HardDrive, RefreshCw } from 'lucide-react';
+import { Package, Search, Download, CheckCircle, AlertCircle, Play, Sparkles, FolderDown, Monitor, ArrowRight, ExternalLink, HardDrive, RefreshCw, Globe, FileCode, Terminal, GitBranch, Film } from 'lucide-react';
 import { useAether } from '../../context/AetherContext';
 
 const POPULAR_DOWNLOADS = [
-  { name: 'Google Chrome', url: 'https://dl.google.com/chrome/install/ChromeSetup.exe', filename: 'ChromeSetup.exe', icon: '🌐', cat: 'Browser' },
-  { name: 'VS Code', url: 'https://update.code.visualstudio.com/latest/win32-x64-user/stable', filename: 'VSCodeUserSetup-x64.exe', icon: '💻', cat: 'Dev' },
-  { name: 'Node.js LTS', url: 'https://nodejs.org/dist/v20.18.0/node-v20.18.0-x64.msi', filename: 'node-v20.18.0-x64.msi', icon: '🟢', cat: 'Dev' },
-  { name: 'Git for Windows', url: 'https://github.com/git-for-windows/git/releases/download/v2.47.0.windows.1/Git-2.47.0-64-bit.exe', filename: 'Git-64-bit.exe', icon: '🐙', cat: 'Dev' },
-  { name: '7-Zip', url: 'https://www.7-zip.org/a/7z2408-x64.exe', filename: '7z2408-x64.exe', icon: '📦', cat: 'Utility' },
-  { name: 'VLC Media Player', url: 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.exe', filename: 'vlc-3.0.21-win64.exe', icon: '🎬', cat: 'Media' },
+  { name: 'Google Chrome', url: 'https://dl.google.com/chrome/install/ChromeSetup.exe', filename: 'ChromeSetup.exe', icon: Globe, cat: 'Browser' },
+  { name: 'VS Code', url: 'https://update.code.visualstudio.com/latest/win32-x64-user/stable', filename: 'VSCodeUserSetup-x64.exe', icon: FileCode, cat: 'Dev' },
+  { name: 'Node.js LTS', url: 'https://nodejs.org/dist/v20.18.0/node-v20.18.0-x64.msi', filename: 'node-v20.18.0-x64.msi', icon: Terminal, cat: 'Dev' },
+  { name: 'Git for Windows', url: 'https://github.com/git-for-windows/git/releases/download/v2.47.0.windows.1/Git-2.47.0-64-bit.exe', filename: 'Git-64-bit.exe', icon: GitBranch, cat: 'Dev' },
+  { name: '7-Zip', url: 'https://www.7-zip.org/a/7z2408-x64.exe', filename: '7z2408-x64.exe', icon: Package, cat: 'Utility' },
+  { name: 'VLC Media Player', url: 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.exe', filename: 'vlc-3.0.21-win64.exe', icon: Film, cat: 'Media' },
 ];
 
 export default function InstallManager({ apiFetch }) {
@@ -230,21 +230,26 @@ export default function InstallManager({ apiFetch }) {
         <div>
           <p className="text-[9px] font-mono text-titanium-500 mb-1.5">1-Tap Download Presets (to Laptop):</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-            {POPULAR_DOWNLOADS.map(app => (
-              <button
-                key={app.name}
-                onClick={() => handleDownloadToLaptop(app.url, app.filename)}
-                disabled={downloading}
-                className="p-1.5 rounded-lg glass-card border border-obsidian-750 hover:border-aurora-blue/40 flex items-center gap-1.5 text-left transition disabled:opacity-40"
-              >
-                <span className="text-sm">{app.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[9px] font-mono text-slate-200 truncate font-semibold">{app.name}</p>
-                  <p className="text-[8px] font-mono text-titanium-500">{app.cat}</p>
-                </div>
-                <Download className="w-2.5 h-2.5 text-aurora-blue shrink-0" />
-              </button>
-            ))}
+            {POPULAR_DOWNLOADS.map(app => {
+              const AppIcon = app.icon;
+              return (
+                <button
+                  key={app.name}
+                  onClick={() => handleDownloadToLaptop(app.url, app.filename)}
+                  disabled={downloading}
+                  className="p-2 rounded-xl glass-card border border-obsidian-750 hover:border-aurora-blue/40 flex items-center gap-2 text-left transition disabled:opacity-40"
+                >
+                  <div className="p-1 rounded-lg bg-obsidian-850 text-aurora-blue">
+                    <AppIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-mono text-slate-200 truncate font-semibold">{app.name}</p>
+                    <p className="text-[8px] font-mono text-titanium-500">{app.cat}</p>
+                  </div>
+                  <Download className="w-2.5 h-2.5 text-aurora-blue shrink-0" />
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

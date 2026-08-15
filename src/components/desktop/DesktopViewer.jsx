@@ -20,7 +20,8 @@ export default function DesktopViewer() {
   const containerRef = useRef(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [zoomLocked, setZoomLocked] = useState(true); // Default true for rock-solid stability
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 }); // percent of container
+  const [zoomLocked, setZoomLocked] = useState(true);
 
   const [touchLog, setTouchLog] = useState('Tap / buttons for clicks • 2-finger scroll • Pinch zoom');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -56,6 +57,7 @@ export default function DesktopViewer() {
   const resetZoom = () => {
     setZoomScale(1);
     setPanOffset({ x: 0, y: 0 });
+    setZoomOrigin({ x: 50, y: 50 });
     setTouchLog('Zoom reset to 1.0x');
   };
 
@@ -222,10 +224,20 @@ export default function DesktopViewer() {
       if (holdTimer.current) clearTimeout(holdTimer.current);
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
+      const avgX = (touch1.clientX + touch2.clientX) / 2;
       const avgY = (touch1.clientY + touch2.clientY) / 2;
       const dist = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
 
+      // Calculate zoom origin as % of container rect
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const originX = Math.max(0, Math.min(100, ((avgX - rect.left) / rect.width) * 100));
+        const originY = Math.max(0, Math.min(100, ((avgY - rect.top) / rect.height) * 100));
+        setZoomOrigin({ x: originX, y: originY });
+      }
+
       twoFingerStartRef.current = {
+        x: avgX,
         y: avgY,
         dist,
         startScale: zoomScale,
@@ -234,9 +246,9 @@ export default function DesktopViewer() {
       };
 
       if (!zoomLocked) {
-        setTouchLog('🔍 Pinch to Zoom & Pan active');
+        setTouchLog('Pinch to Zoom & Pan active');
       } else {
-        setTouchLog('📜 2-Finger Scroll Active');
+        setTouchLog('2-Finger Scroll Active');
       }
     }
   };
@@ -261,7 +273,7 @@ export default function DesktopViewer() {
             y: Math.max(-300, Math.min(300, twoFingerStartRef.current.startPan.y + (diffY * 0.5)))
           });
         }
-        setTouchLog(`🔍 Zoom: ${newScale.toFixed(2)}x`);
+        setTouchLog(`Zoom: ${newScale.toFixed(2)}x`);
         return;
       }
 
@@ -428,7 +440,7 @@ export default function DesktopViewer() {
             className="relative w-full h-full flex items-center justify-center touch-none select-none"
             style={{
               transform: zoomScale > 1.0 ? `scale(${zoomScale}) translate(${panOffset.x}px, ${panOffset.y}px)` : 'none',
-              transformOrigin: 'center center',
+              transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
               transition: 'transform 0.05s ease-out'
             }}
           >
@@ -485,7 +497,7 @@ export default function DesktopViewer() {
                 </div>
               )}
 
-              {/* Click Ripple Animation */}
+        {/* Click Ripple Animation */}
               {clickRipple && (
                 <div
                   className={`absolute w-8 h-8 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-ping z-30 ${
@@ -571,19 +583,23 @@ export default function DesktopViewer() {
                 Right Click
               </button>
             </div>
+
+            {/* FPS + Touch Log — bottom of fullscreen (does not cover screen content) */}
+            <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none flex items-center justify-between px-3 py-1 bg-black/70 backdrop-blur border-t border-obsidian-800">
+              <span className="text-[9px] font-mono text-titanium-300 truncate">{touchLog}</span>
+              <span className="text-[9px] font-mono text-aurora-cyan shrink-0 ml-2">{screenFps || 0} FPS</span>
+            </div>
           </>
         )}
-
-        {/* Live Touch / Action Status Bar */}
-        <div className="absolute bottom-2 left-2 right-2 z-30 pointer-events-none flex items-center justify-between">
-          <span className="text-[9px] font-mono px-2 py-1 rounded bg-black/80 backdrop-blur border border-obsidian-750 text-titanium-300 shadow">
-            {touchLog}
-          </span>
-          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/80 backdrop-blur border border-obsidian-750 text-aurora-cyan">
-            {screenFps || 0} FPS
-          </span>
-        </div>
       </div>
+
+      {/* FPS + Touch Log — below screen in normal mode (completely outside the screen area) */}
+      {!isFullscreen && (
+        <div className="flex items-center justify-between px-2 py-1.5 rounded-xl bg-obsidian-950/80 border border-obsidian-800">
+          <span className="text-[9px] font-mono text-titanium-400 truncate">{touchLog}</span>
+          <span className="text-[9px] font-mono text-aurora-cyan shrink-0 ml-2 font-bold">{screenFps || 0} FPS</span>
+        </div>
+      )}
 
       {/* Floating Keyboard Drawer */}
       {showKeyboardBar && (

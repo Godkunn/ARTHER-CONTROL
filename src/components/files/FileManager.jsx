@@ -3,17 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { useAether } from '../../context/AetherContext';
 import {
   Folder, File, Download, HardDrive, ChevronRight, RefreshCw, ArrowLeft,
-  Eye, X, Play, Music, Image as ImageIcon, FileText, Code, Copy, Check
+  Eye, X, Play, Music, Image as ImageIcon, FileText, Code, Copy, Check,
+  Zap, Monitor, FolderDown
 } from 'lucide-react';
 
 const ROOTS = [
-  { label: 'Project', path: 'C:/Users/Hp/Desktop/AETHER CONTROL', icon: '⚡' },
-  { label: 'Desktop', path: 'C:/Users/Hp/Desktop', icon: '🖥' },
-  { label: 'Downloads', path: 'C:/Users/Hp/Downloads', icon: '⬇' },
-  { label: 'Documents', path: 'C:/Users/Hp/Documents', icon: '📄' },
-  { label: 'Pictures', path: 'C:/Users/Hp/Pictures', icon: '🖼' },
-  { label: 'Music', path: 'C:/Users/Hp/Music', icon: '🎵' },
-  { label: 'C:\\', path: 'C:/', icon: '💾' },
+  { label: 'Project', path: 'C:/Users/Hp/Desktop/AETHER CONTROL', icon: Zap },
+  { label: 'Desktop', path: 'C:/Users/Hp/Desktop', icon: Monitor },
+  { label: 'Downloads', path: 'C:/Users/Hp/Downloads', icon: FolderDown },
+  { label: 'Documents', path: 'C:/Users/Hp/Documents', icon: FileText },
+  { label: 'Pictures', path: 'C:/Users/Hp/Pictures', icon: ImageIcon },
+  { label: 'Music', path: 'C:/Users/Hp/Music', icon: Music },
+  { label: 'C:\\', path: 'C:/', icon: HardDrive },
 ];
 
 const EXT_COLORS = {
@@ -142,17 +143,21 @@ export default function FileManager() {
 
       {/* Root shortcuts */}
       <div className="flex gap-1 overflow-x-auto pb-0.5">
-        {ROOTS.map(root => (
-          <button key={root.path}
-            onClick={() => loadDir(root.path)}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[9px] font-mono whitespace-nowrap transition ${
-              currentPath === root.path
-                ? 'bg-aurora-cyan/20 border-aurora-cyan text-aurora-cyan font-bold'
-                : 'glass-card border-obsidian-750 text-titanium-400 hover:text-white'
-            }`}>
-            <span>{root.icon}</span> {root.label}
-          </button>
-        ))}
+        {ROOTS.map(root => {
+          const RootIcon = root.icon;
+          return (
+            <button key={root.path}
+              onClick={() => loadDir(root.path)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-mono whitespace-nowrap transition ${
+                currentPath === root.path
+                  ? 'bg-aurora-cyan/20 border-aurora-cyan text-aurora-cyan font-bold'
+                  : 'glass-card border-obsidian-750 text-titanium-400 hover:text-white'
+              }`}>
+              <RootIcon className="w-3 h-3 text-aurora-cyan" />
+              <span>{root.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Breadcrumb */}

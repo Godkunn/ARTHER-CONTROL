@@ -43,10 +43,18 @@ export function startInputDaemon() {
 
         if (trimmed.startsWith('STAT:')) {
           const parts = trimmed.substring(5).split('|');
-          if (parts.length >= 3) {
+          if (parts.length >= 4) {
             latestStats = {
               batteryPercent: parseInt(parts[0], 10) || 100,
               isCharging: parts[1] === '1',
+              isLocked: parts[2] === '1',
+              activeWindow: parts.slice(3).join('|') || 'Desktop'
+            };
+          } else if (parts.length >= 3) {
+            latestStats = {
+              batteryPercent: parseInt(parts[0], 10) || 100,
+              isCharging: parts[1] === '1',
+              isLocked: false,
               activeWindow: parts.slice(2).join('|') || 'Desktop'
             };
           }

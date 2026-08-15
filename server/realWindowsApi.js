@@ -124,6 +124,7 @@ export function getRealSystemStats() {
     freeMemGB: (freeMem / (1024 ** 3)).toFixed(1),
     batteryPercent: hw.batteryPercent || 100,
     isCharging: hw.isCharging,
+    isLocked: !!hw.isLocked,
     activeWindow: hw.activeWindow || 'Desktop',
     platform: os.platform(),
     hostname: os.hostname(),
@@ -381,10 +382,14 @@ export function realExecuteSystemCommand(cmd, payload = null) {
         nativeWake();
         wakeDisplay();
         break;
+      case 'SWITCH_PIN':
+      case 'SWITCH_TO_PIN':
+        sendDaemonCommand('switch_pin');
+        break;
       case 'UNLOCK_PC':
         nativeWake();
         wakeDisplay();
-        const pinCode = payload && (payload.pin || payload.code) ? String(payload.pin || payload.code) : '';
+        const pinCode = payload && (payload.pin || payload.code) ? String(payload.pin || payload.code).trim() : '';
         nativeUnlock(pinCode);
         break;
       case 'SNIP':

@@ -52,6 +52,13 @@ namespace AetherControl
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool CloseDesktop(IntPtr hDesktop);
 
+        [DllImport("user32.dll")]
+        static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        const uint WM_SYSCOMMAND = 0x0112;
+        const int SC_MONITORPOWER = 0xF170;
+        static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
+
         const int MOUSEEVENTF_MOVE = 0x0001;
         const int MOUSEEVENTF_LEFTDOWN = 0x0002;
         const int MOUSEEVENTF_LEFTUP = 0x0004;
@@ -311,6 +318,7 @@ namespace AetherControl
                     }
                     else if (cmd == "wake")
                     {
+                        SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, (IntPtr)SC_MONITORPOWER, (IntPtr)(-1));
                         SetThreadExecutionState(unchecked((int)0x80000003));
                         mouse_event(MOUSEEVENTF_MOVE, 20, 20, 0, 0);
                         mouse_event(MOUSEEVENTF_MOVE, -20, -20, 0, 0);
@@ -318,44 +326,134 @@ namespace AetherControl
                         Thread.Sleep(20);
                         keybd_event(0x11, 0, KEYEVENTF_KEYUP, 0);
                     }
-                    else if (cmd == "unlock")
+                    else if (cmd == "switch_pin")
                     {
+                        // Dismiss lock screen wallpaper & switch to PIN credential provider
+                        SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, (IntPtr)SC_MONITORPOWER, (IntPtr)(-1));
+                        SetThreadExecutionState(unchecked((int)0x80000003));
+
                         IntPtr hInputDesk = OpenInputDesktop(0, false, 0x01FF);
                         if (hInputDesk != IntPtr.Zero)
                         {
                             try { SetThreadDesktop(hInputDesk); } catch {}
                         }
 
-                        // 1. Wake hardware display and thread
-                        SetThreadExecutionState(unchecked((int)0x80000003));
-                        mouse_event(MOUSEEVENTF_MOVE, 30, 30, 0, 0);
-                        mouse_event(MOUSEEVENTF_MOVE, -30, -30, 0, 0);
-                        Thread.Sleep(80);
-
-                        // 2. Click screen center to focus Logon UI
-                        int midX = Screen.PrimaryScreen.Bounds.Width / 2;
-                        int midY = Screen.PrimaryScreen.Bounds.Height / 2;
-                        SetCursorPos(midX, midY);
-                        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+                        // Space + Esc + Space to dismiss lock wallpaper
+                        keybd_event(0x20, 0x39, 0, 0);
                         Thread.Sleep(30);
-                        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-                        Thread.Sleep(100);
-
-                        // 3. Dismiss Lock Screen Wallpaper (Hardware Space + Enter)
-                        keybd_event(0x20, 0x39, 0, 0); // Space
-                        Thread.Sleep(40);
                         keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
                         Thread.Sleep(150);
 
-                        keybd_event(0x0D, 0x1C, 0, 0); // Enter
-                        Thread.Sleep(40);
-                        keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
-                        Thread.Sleep(350);
+                        keybd_event(0x1B, 0x01, 0, 0);
+                        Thread.Sleep(30);
+                        keybd_event(0x1B, 0x01, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(150);
 
-                        // 4. Inject PIN if provided via Hardware Scan Codes
-                        if (parts.Length >= 2)
+                        keybd_event(0x20, 0x39, 0, 0);
+                        Thread.Sleep(30);
+                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(800);
+
+                        // Tab to focus Sign-in options / credential list
+                        keybd_event(0x09, 0x0F, 0, 0); // Tab
+                        Thread.Sleep(30);
+                        keybd_event(0x09, 0x0F, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(150);
+
+                        // Space to open options
+                        keybd_event(0x20, 0x39, 0, 0); // Space
+                        Thread.Sleep(30);
+                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(200);
+
+                        // Right Arrow to select PIN icon
+                        keybd_event(0x27, 0x4D, 0, 0); // Right
+                        Thread.Sleep(30);
+                        keybd_event(0x27, 0x4D, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(150);
+
+                        // Enter to activate PIN
+                        keybd_event(0x0D, 0x1C, 0, 0); // Enter
+                        Thread.Sleep(30);
+                        keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
+
+                        if (hInputDesk != IntPtr.Zero)
+                        {
+                            try { CloseDesktop(hInputDesk); } catch {}
+                        }
+                    }
+                    else if (cmd == "unlock")
+                    {
+                        // 1. Wake physical display hardware & execution thread
+                        SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, (IntPtr)SC_MONITORPOWER, (IntPtr)(-1));
+                        SetThreadExecutionState(unchecked((int)0x80000003));
+                        
+                        IntPtr hInputDesk = OpenInputDesktop(0, false, 0x01FF);
+                        if (hInputDesk != IntPtr.Zero)
+                        {
+                            try { SetThreadDesktop(hInputDesk); } catch {}
+                        }
+
+                        // Jiggle mouse to clear screensaver
+                        mouse_event(MOUSEEVENTF_MOVE, 40, 40, 0, 0);
+                        Thread.Sleep(30);
+                        mouse_event(MOUSEEVENTF_MOVE, -40, -40, 0, 0);
+                        Thread.Sleep(60);
+
+                        // 2. Dismiss Lock Screen Wallpaper (Hardware Space + Escape + Space)
+                        keybd_event(0x20, 0x39, 0, 0); // Space
+                        Thread.Sleep(40);
+                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(200);
+
+                        keybd_event(0x1B, 0x01, 0, 0); // Escape
+                        Thread.Sleep(40);
+                        keybd_event(0x1B, 0x01, KEYEVENTF_KEYUP, 0);
+                        Thread.Sleep(200);
+
+                        keybd_event(0x20, 0x39, 0, 0); // Space again
+                        Thread.Sleep(40);
+                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                        
+                        // 3. Windows 10/11 Lock Screen sliding transition delay
+                        Thread.Sleep(850);
+
+                        // 4. If PIN provided, switch from Biometrics (Fingerprint/Hello) to PIN and type
+                        if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[1]))
                         {
                             string pin = parts[1];
+
+                            // Switch to PIN mode if on Biometrics page: Tab -> Space -> Right -> Enter
+                            keybd_event(0x09, 0x0F, 0, 0); // Tab
+                            Thread.Sleep(30);
+                            keybd_event(0x09, 0x0F, KEYEVENTF_KEYUP, 0);
+                            Thread.Sleep(120);
+
+                            keybd_event(0x20, 0x39, 0, 0); // Space
+                            Thread.Sleep(30);
+                            keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
+                            Thread.Sleep(150);
+
+                            keybd_event(0x27, 0x4D, 0, 0); // Right
+                            Thread.Sleep(30);
+                            keybd_event(0x27, 0x4D, KEYEVENTF_KEYUP, 0);
+                            Thread.Sleep(120);
+
+                            keybd_event(0x0D, 0x1C, 0, 0); // Enter
+                            Thread.Sleep(30);
+                            keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
+                            Thread.Sleep(250);
+
+                            // Also click center area as secondary focus guarantee
+                            int midX = Screen.PrimaryScreen.Bounds.Width / 2;
+                            int midY = Screen.PrimaryScreen.Bounds.Height / 2;
+                            SetCursorPos(midX, midY + 40);
+                            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+                            Thread.Sleep(20);
+                            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+                            Thread.Sleep(150);
+
+                            // 5. Inject PIN characters via Hardware Scan Codes
                             foreach (char c in pin)
                             {
                                 byte vk = 0;
@@ -367,16 +465,16 @@ namespace AetherControl
                                 {
                                     byte scan = (byte)MapVirtualKey(vk, 0);
                                     keybd_event(vk, scan, 0, 0);
-                                    Thread.Sleep(30);
+                                    Thread.Sleep(45);
                                     keybd_event(vk, scan, KEYEVENTF_KEYUP, 0);
-                                    Thread.Sleep(40);
+                                    Thread.Sleep(50);
                                 }
                             }
 
-                            // 5. Press Enter to submit PIN
-                            Thread.Sleep(120);
+                            // 6. Press Enter to submit PIN
+                            Thread.Sleep(150);
                             keybd_event(0x0D, 0x1C, 0, 0);
-                            Thread.Sleep(40);
+                            Thread.Sleep(50);
                             keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
                         }
 
@@ -436,8 +534,9 @@ namespace AetherControl
                         int batteryPercent = (int)Math.Round(power.BatteryLifePercent * 100);
                         bool isCharging = power.PowerLineStatus == PowerLineStatus.Online;
                         string activeTitle = GetActiveWindowTitle();
+                        bool isLocked = Process.GetProcessesByName("LogonUI").Length > 0;
 
-                        Console.WriteLine(string.Format("STAT:{0}|{1}|{2}", batteryPercent, isCharging ? 1 : 0, activeTitle));
+                        Console.WriteLine(string.Format("STAT:{0}|{1}|{2}|{3}", batteryPercent, isCharging ? 1 : 0, isLocked ? 1 : 0, activeTitle));
                     }
                     else if (cmd == "get_apps")
                     {

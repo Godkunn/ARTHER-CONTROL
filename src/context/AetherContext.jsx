@@ -150,6 +150,7 @@ export const AetherProvider = ({ children }) => {
                 ramUsage: data.ram !== undefined ? data.ram : prev.ramUsage,
                 batteryPercent: data.battery !== undefined ? data.battery : prev.batteryPercent,
                 isCharging: data.isCharging !== undefined ? data.isCharging : prev.isCharging,
+                isLocked: data.isLocked !== undefined ? data.isLocked : prev.isLocked,
                 activeWindow: data.activeWindow || prev.activeWindow,
                 runningApps: data.runningApps || prev.runningApps,
                 memInfo: data.memInfo || prev.memInfo
@@ -173,8 +174,13 @@ export const AetherProvider = ({ children }) => {
               addTerminalLine(data.outputType || 'stdout', data.output);
               break;
             case 'approval_required':
-              setSystemStatus(prev => ({ ...prev, pendingApprovals: [data.approval, ...prev.pendingApprovals] }));
+              setSystemStatus(prev => {
+                const existing = prev.pendingApprovals || [];
+                if (existing.some(a => a.id === data.approval.id)) return prev;
+                return { ...prev, pendingApprovals: [data.approval, ...existing] };
+              });
               playAlertChime();
+              try { if (navigator.vibrate) navigator.vibrate([150, 100, 250]); } catch (_) {}
               addLog('Approval', `🔔 ${data.approval.app}: ${data.approval.title}`);
               if ('Notification' in window) {
                 if (Notification.permission === 'granted') {

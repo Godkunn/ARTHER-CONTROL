@@ -42,14 +42,38 @@ export default function Dashboard() {
   };
 
   const handleDirectUnlock = (pinToUse) => {
-    setUnlockStatusText('⚡ Injecting Hardware Scan Codes...');
+    if (!pinToUse && !systemStatus.isLocked) {
+      setUnlockStatusText('⚡ Workstation is active & already unlocked!');
+      setTimeout(() => {
+        setUnlockStatusText('');
+      }, 1500);
+      return;
+    }
+
+    setUnlockStatusText('⚡ Waking screen & switching from Fingerprint to PIN...');
     executeCommand('UNLOCK_PC', { pin: pinToUse });
+
     setTimeout(() => {
-      setShowUnlockModal(false);
-      setUnlockStatusText('');
-      setScanProgress(0);
-      setBioPrompting(false);
+      setUnlockStatusText('🔑 Injecting PIN via hardware scan codes...');
     }, 900);
+
+    setTimeout(() => {
+      setUnlockStatusText('✅ Submitting PIN to Windows Logon...');
+      setTimeout(() => {
+        setShowUnlockModal(false);
+        setUnlockStatusText('');
+        setScanProgress(0);
+        setBioPrompting(false);
+      }, 1200);
+    }, 1800);
+  };
+
+  const handleSwitchToPin = () => {
+    setUnlockStatusText('👆 Dismissing lock wallpaper & opening PIN box...');
+    executeCommand('SWITCH_TO_PIN');
+    setTimeout(() => {
+      setUnlockStatusText('✅ PIN box activated on laptop screen!');
+    }, 1000);
   };
 
   // Interactive Haptic Biometric Touch Sensor Scan
@@ -276,37 +300,54 @@ export default function Dashboard() {
           <BatteryCharging className="w-5 h-5 text-aurora-emerald opacity-80" />
         </div>
 
-        {/* Volume Metric Card */}
-        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">Master Audio</p>
-            <div className="flex items-center space-x-1 mt-1">
-              <span className="text-[9px] font-mono text-titanium-400">Windows Control</span>
+        {/* Master Audio Metric Card - Dynamic Silent / Red State on Mute */}
+        <div className={`px-3 py-2.5 rounded-xl border flex items-center gap-2 overflow-hidden transition-all duration-300 ${
+          systemStatus.isMuted
+            ? 'bg-aurora-pink/15 border-aurora-pink/60 shadow-glow-pink'
+            : 'glass-card border-obsidian-750'
+        }`}>
+          {/* Mute toggle icon — animated swap on mute/unmute */}
+          <button
+            onClick={() => executeCommand('TOGGLE_MUTE')}
+            title={systemStatus.isMuted ? 'Click to Unmute' : 'Click to Mute'}
+            className={`p-2 rounded-xl shrink-0 transition-all duration-200 active:scale-90 ${
+              systemStatus.isMuted
+                ? 'bg-aurora-pink text-obsidian-950 font-bold shadow-lg shadow-aurora-pink/40 animate-pulse'
+                : 'bg-obsidian-850 border border-obsidian-700 text-aurora-cyan hover:border-aurora-pink/40'
+            }`}
+          >
+            <div className="relative w-4 h-4 flex items-center justify-center">
+              {systemStatus.isMuted ? (
+                <VolumeX className="w-4 h-4 text-white" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-aurora-cyan" />
+              )}
             </div>
+          </button>
+          {/* Volume label */}
+          <div className="min-w-0 flex-1">
+            <p className={`text-[9px] font-mono uppercase tracking-wider leading-none font-bold ${
+              systemStatus.isMuted ? 'text-aurora-pink' : 'text-titanium-400'
+            }`}>
+              {systemStatus.isMuted ? '🔇 Audio Muted' : 'Master Audio'}
+            </p>
+            <p className={`text-sm font-bold font-mono leading-tight mt-0.5 transition-colors duration-200 ${
+              systemStatus.isMuted ? 'text-aurora-pink font-extrabold' : 'text-slate-100'
+            }`}>
+              {systemStatus.isMuted ? 'SILENT' : `${systemStatus.volume || 75}%`}
+            </p>
           </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => executeCommand('VOLUME_DOWN')}
-              title="Decrease Master Volume"
-              className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:border-aurora-cyan/40 active:scale-95 transition"
-            >
-              <Volume2 className="w-4 h-4 text-titanium-400" />
-            </button>
-            <button
-              onClick={() => executeCommand('VOLUME_UP')}
-              title="Increase Master Volume"
-              className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:border-aurora-cyan/40 active:scale-95 transition"
-            >
-              <Volume2 className="w-5 h-5 text-aurora-cyan" />
-            </button>
-            <button
-              onClick={() => executeCommand('TOGGLE_MUTE')}
-              title="Toggle Mute"
-              className="w-10 h-10 rounded-xl glass-card flex items-center justify-center hover:border-aurora-pink/40 active:scale-95 transition"
-            >
-              <VolumeX className="w-5 h-5 text-aurora-pink" />
-            </button>
-          </div>
+          {/* Vol down / up compact buttons */}
+          <button
+            onClick={() => executeCommand('VOLUME_DOWN')}
+            title="Decrease Volume"
+            className="w-7 h-7 rounded-lg glass-card flex items-center justify-center hover:border-aurora-cyan/40 hover:bg-white/5 active:scale-90 transition text-titanium-300 hover:text-white font-mono text-sm font-bold shrink-0"
+          >−</button>
+          <button
+            onClick={() => executeCommand('VOLUME_UP')}
+            title="Increase Volume"
+            className="w-7 h-7 rounded-lg glass-card flex items-center justify-center hover:border-aurora-cyan/40 hover:bg-white/5 active:scale-90 transition text-aurora-cyan hover:text-cyan-300 font-mono text-sm font-bold shrink-0"
+          >+</button>
         </div>
       </div>
 
@@ -371,16 +412,16 @@ export default function Dashboard() {
           <button
             onClick={() => setShowUnlockModal(true)}
             className={`p-2.5 rounded-xl text-center flex flex-col items-center justify-center space-y-1 active:scale-95 transition ${
-              (systemStatus.activeWindow || '').toLowerCase().includes('logon') 
-              ? 'bg-aurora-emerald/20 border border-aurora-emerald/50 shadow-glow-emerald hover:bg-aurora-emerald/30' 
+              systemStatus.isLocked
+              ? 'bg-aurora-emerald/25 border border-aurora-emerald shadow-glow-emerald hover:bg-aurora-emerald/35' 
               : 'glass-card hover:border-aurora-emerald/40'
             }`}
             title="Wake & Remote Unlock Laptop with Scan Codes"
           >
             <Zap className="w-4 h-4 text-aurora-emerald" />
             <span className={`text-[10px] font-mono ${
-              (systemStatus.activeWindow || '').toLowerCase().includes('logon') ? 'text-aurora-emerald font-bold' : 'text-titanium-300'
-            }`}>Unlock</span>
+              systemStatus.isLocked ? 'text-aurora-emerald font-bold' : 'text-titanium-300'
+            }`}>{systemStatus.isLocked ? 'Unlock (Locked)' : 'Unlock'}</span>
           </button>
 
           <button
@@ -487,7 +528,9 @@ export default function Dashboard() {
                 </span>
                 <div>
                   <h3 className="text-base font-bold text-slate-100">Unlock Workstation</h3>
-                  <p className="text-[10px] font-mono text-titanium-400">Biometric Sensor & Hardware Scan Codes</p>
+                  <p className="text-[10px] font-mono text-titanium-400">
+                    Status: {systemStatus.isLocked ? <span className="text-aurora-amber font-bold">🔒 LOCKED (LogonUI Active)</span> : <span className="text-aurora-emerald font-bold">🟢 ACTIVE (Unlocked)</span>}
+                  </p>
                 </div>
               </div>
               <button
@@ -596,16 +639,22 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-1">
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
               <button
                 onClick={() => handleDirectUnlock(unlockPin)}
-                className="flex-1 py-2.5 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition"
+                className="col-span-3 py-2.5 rounded-xl bg-aurora-emerald text-obsidian-950 font-mono font-bold text-xs shadow-glow-emerald hover:bg-emerald-400 transition active:scale-95"
               >
-                ⚡ Unlock with PIN
+                ⚡ Full Auto Unlock (Switch + PIN)
+              </button>
+              <button
+                onClick={handleSwitchToPin}
+                className="col-span-2 py-2 rounded-xl bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan font-mono text-[10px] font-bold hover:bg-aurora-cyan/30 transition text-center"
+              >
+                👆 Open PIN Box Only
               </button>
               <button
                 onClick={() => handleDirectUnlock('')}
-                className="px-3 py-2.5 rounded-xl bg-obsidian-800 border border-obsidian-750 text-titanium-300 font-mono text-xs hover:text-white transition"
+                className="py-2 rounded-xl bg-obsidian-800 border border-obsidian-750 text-titanium-300 font-mono text-[10px] hover:text-white transition text-center"
               >
                 Wake Only
               </button>
