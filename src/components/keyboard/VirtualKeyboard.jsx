@@ -176,6 +176,38 @@ export default function VirtualKeyboard() {
             </button>
           </div>
 
+          {/* Quick Browser & Tab Row in Tab 1 */}
+          <div className="grid grid-cols-4 gap-1.5">
+            <button
+              onClick={() => handleKeyPress('Ctrl+Shift+T')}
+              className="py-1.5 rounded-xl bg-aurora-cyan/20 border border-aurora-cyan/50 text-[11px] font-mono text-aurora-cyan font-bold hover:bg-aurora-cyan/30 flex items-center justify-center gap-1 shadow-glow-cyan"
+              title="Reopen Closed Tab / Retrieve Tab History (Ctrl+Shift+T)"
+            >
+              <span>📑 Reopen Tab</span>
+            </button>
+            <button
+              onClick={() => handleKeyPress('Ctrl+H')}
+              className="py-1.5 rounded-xl bg-obsidian-900 border border-obsidian-750 text-[11px] font-mono text-titanium-200 font-bold hover:border-aurora-purple"
+              title="Browser History (Ctrl+H)"
+            >
+              <span>🕒 History</span>
+            </button>
+            <button
+              onClick={() => handleKeyPress('Ctrl+T')}
+              className="py-1.5 rounded-xl bg-obsidian-900 border border-obsidian-750 text-[11px] font-mono text-titanium-200 font-bold hover:border-aurora-emerald"
+              title="New Tab (Ctrl+T)"
+            >
+              <span>+ New Tab</span>
+            </button>
+            <button
+              onClick={() => handleKeyPress('Ctrl+W')}
+              className="py-1.5 rounded-xl bg-obsidian-900 border border-obsidian-750 text-[11px] font-mono text-aurora-pink font-bold hover:border-aurora-pink"
+              title="Close Tab (Ctrl+W)"
+            >
+              <span>✕ Close Tab</span>
+            </button>
+          </div>
+
           {/* D-Pad Arrow Keys & Space */}
           <div className="grid grid-cols-5 gap-1.5">
             <button onClick={() => handleKeyPress('ArrowLeft')} className="py-1.5 rounded-xl bg-obsidian-950 border border-obsidian-800 text-xs font-mono text-slate-200 font-bold hover:border-aurora-cyan">←</button>

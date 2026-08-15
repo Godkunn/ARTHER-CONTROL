@@ -444,6 +444,11 @@ export function realExecuteSystemCommand(cmd, payload = null) {
         nativeClearRam();
         exec('powershell -NoProfile -Command "Clear-Content -Path $env:TEMP\\* -Force -ErrorAction SilentlyContinue; [GC]::Collect(); [GC]::WaitForPendingFinalizers();"', () => {});
         break;
+      case 'REDUCE_CPU_LOAD':
+      case 'COOL_DOWN':
+        nativeClearRam();
+        exec('powershell -NoProfile -Command "taskkill /F /FI \\"STATUS eq NOT RESPONDING\\" 2>$null; powercfg /setactive SCHEME_BALANCED 2>$null; [GC]::Collect();"', () => {});
+        break;
     }
   } catch (_) {}
 }

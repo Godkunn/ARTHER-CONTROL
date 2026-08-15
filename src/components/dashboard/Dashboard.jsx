@@ -276,10 +276,14 @@ export default function Dashboard() {
 
       {/* System Quick Hardware Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {/* CPU Metric Card */}
-        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
+        {/* CPU Metric Card (Interactive Cool Down) */}
+        <div 
+          onClick={() => executeCommand('REDUCE_CPU_LOAD')}
+          className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between cursor-pointer hover:border-aurora-cyan/40 active:scale-95 transition group"
+          title="Tap to Cool Down CPU & Optimize Tasks"
+        >
           <div className="space-y-1">
-            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">CPU Load</p>
+            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider group-hover:text-aurora-cyan transition">CPU (Tap to Cool Down)</p>
             <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.cpuUsage || 0}%</p>
             <div className="w-20 bg-obsidian-800 h-1.5 rounded-full overflow-hidden">
               <div
@@ -288,7 +292,7 @@ export default function Dashboard() {
               />
             </div>
           </div>
-          <Cpu className="w-5 h-5 text-aurora-cyan opacity-80" />
+          <Cpu className="w-5 h-5 text-aurora-cyan opacity-80 group-hover:opacity-100 group-hover:scale-110 transition" />
         </div>
 
         {/* RAM Metric Card */}
