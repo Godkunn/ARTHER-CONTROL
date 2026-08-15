@@ -202,7 +202,7 @@ setInterval(async () => {
     const item = addClipboardImageItem(clipImg, 'Laptop');
     broadcast({ type: 'clipboard_updated', item });
   }
-}, 500);
+}, 1500); // 1.5s is plenty — CPU/RAM don't change faster than this
 
 // ─────────────────────────────────────────────
 // ANTIGRAVITY BRAIN & SYSTEM DIALOG/APPROVAL DETECTOR
@@ -339,20 +339,16 @@ function checkAntigravityApproval() {
   return null;
 }
 
+// ─────────────────────────────────────────────
+// ANTIGRAVITY APPROVAL DETECTOR — Lightweight, event-driven
+// Polls transcript only. No UAC/Windows dialog scanning (not feasible).
+// ─────────────────────────────────────────────
 setInterval(() => {
   try {
-    if (clients.size === 0) return;
-    const status = getSystemStatus();
-    const rawTitle = status.activeWindow;
-    const activeTitle = typeof rawTitle === 'string' ? rawTitle : (rawTitle && typeof rawTitle === 'object' ? (rawTitle.title || rawTitle.name || '') : '');
+    if (clients.size === 0) return; // No clients → skip entirely
 
-    // Check Antigravity engine first
     const agApproval = checkAntigravityApproval();
-
-    // Check Windows system dialogs
-    const apps = getRealRunningApps();
-    const isDialogActive = /User Account Control|consent\.exe|Credential UI|Windows Security|Administrator|SmartScreen|Windows Defender|Confirm|Permission|Elevat/i.test(activeTitle) ||
-      apps.some(a => /Approval Required|Antigravity Confirm|Confirm Command/i.test(a.title));
+    const status = getSystemStatus();
 
     if (agApproval) {
       if (activeSystemDialogId !== agApproval.id) {
@@ -361,30 +357,8 @@ setInterval(() => {
         status.pendingApprovals.unshift(agApproval);
         broadcast({ type: 'approval_required', approval: agApproval });
       }
-    } else if (isDialogActive) {
-      const displayTitle = activeTitle.length > 5 ? activeTitle : 'System / Agent Prompt';
-      const dialogId = `dlg-${displayTitle.substring(0, 24).replace(/[^a-zA-Z0-9]/g, '_')}`;
-      if (activeSystemDialogId !== dialogId) {
-        activeSystemDialogId = dialogId;
-        const approval = {
-          id: dialogId,
-          app: activeTitle.includes('Antigravity') ? 'Antigravity AI' : 'Windows System',
-          title: displayTitle,
-          description: `Active prompt detected on laptop: "${displayTitle}". Tap Allow on phone to confirm.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          severity: 'danger',
-          isSystemDialog: true,
-          actions: [
-            { id: 'yes', label: '1. Allow / Confirm', type: 'primary' },
-            { id: 'no', label: '2. Dismiss / Deny', type: 'danger' }
-          ]
-        };
-        status.pendingApprovals = (status.pendingApprovals || []).filter(a => !a.isSystemDialog);
-        status.pendingApprovals.unshift(approval);
-        broadcast({ type: 'approval_required', approval });
-      }
     } else if (activeSystemDialogId) {
-      // Prompt has closed or was approved on laptop!
+      // Approval was answered (on laptop or phone) — auto-resolve
       const closedId = activeSystemDialogId;
       activeSystemDialogId = null;
       const existingIndex = (status.pendingApprovals || []).findIndex(a => a.id === closedId);
@@ -392,9 +366,9 @@ setInterval(() => {
         const removed = status.pendingApprovals.splice(existingIndex, 1)[0];
         const resolved = {
           ...removed,
-          status: 'DISMISSED_ON_LAPTOP',
-          selectedOption: 'Resolved on Laptop',
-          resolvedBy: 'Laptop Screen',
+          status: 'RESOLVED',
+          selectedOption: 'Resolved',
+          resolvedBy: 'Auto',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         };
         if (!status.approvalHistory) status.approvalHistory = [];
@@ -403,7 +377,7 @@ setInterval(() => {
       }
     }
   } catch (_) {}
-}, 500);
+}, 2000);
 
 
 // ─────────────────────────────────────────────
@@ -548,12 +522,6 @@ app.post('/api/approve', (req, res) => {
     // Even if not in our queue (OS-level dialog), still dispatch keys
     res.json({ success: true, dispatched: true, note: 'Key dispatched to active window' });
   }
-});
-app.post('/api/trigger-approval', (req, res) => {
-  const { app: appName } = req.body;
-  const a = triggerSimulatedApproval(appName);
-  broadcast({ type: 'approval_required', approval: a });
-  res.json({ success: true, approval: a });
 });
 
 // Clipboard (Real 2-Way Sync)

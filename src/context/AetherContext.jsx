@@ -273,26 +273,6 @@ export const AetherProvider = ({ children }) => {
     } catch (_) {}
   }, [apiFetch]);
 
-  const triggerTestApproval = useCallback(async (appName = 'Antigravity IDE') => {
-    try {
-      await apiFetch('/api/trigger-approval', { method: 'POST', body: JSON.stringify({ app: appName }) });
-    } catch {
-      const mock = {
-        id: `appr-${Math.floor(Math.random() * 9000 + 1000)}`, app: appName,
-        title: 'Permission Requested',
-        description: `${appName} requests high-priority action.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        severity: 'warning',
-        actions: [
-          { id: 'yes', label: 'Yes', type: 'primary' },
-          { id: 'no', label: 'No', type: 'danger' }
-        ]
-      };
-      setSystemStatus(prev => ({ ...prev, pendingApprovals: [mock, ...prev.pendingApprovals] }));
-      playAlertChime();
-    }
-  }, [apiFetch]);
-
   const toggleKillSwitch = useCallback(async (active) => {
     try {
       await apiFetch('/api/kill-switch', { method: 'POST', body: JSON.stringify({ active }) });
@@ -376,7 +356,7 @@ export const AetherProvider = ({ children }) => {
       screenshareActive, setScreenshareActive,
       currentScreenJpeg, screenFps,
       terminalLines, addTerminalLine,
-      sendInputEvent, resolveApproval, triggerTestApproval,
+      sendInputEvent, resolveApproval,
       toggleKillSwitch, focusWindow: focusWindowAction,
       executeCommand, addClipboard, addLog,
       executeTerminalCommand, apiFetch,
