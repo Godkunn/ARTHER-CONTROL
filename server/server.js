@@ -308,8 +308,8 @@ function checkAntigravityApproval() {
         try {
           if (hasToolCalls) {
             const qTool = lastObj.tool_calls.find(t => t && t.name === 'ask_question');
-            if (qTool && qTool.args && qTool.args.questions && qTool.args.questions.length > 0) {
-              const q = qTool.args.questions[0];
+            let qList = qTool.args.questions; if (typeof qList === 'string') { try { qList = JSON.parse(qList); } catch(_) {} } if (qTool && qTool.args && qList && qList.length > 0) {
+              const q = qList[0];
               extractedTitle = q.question || extractedTitle;
               extractedDesc = `Question: "${q.question}". Select your choice below:`;
               if (Array.isArray(q.options) && q.options.length > 0) {

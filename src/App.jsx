@@ -95,6 +95,12 @@ function GlobalApprovalBanner() {
 function MainContent() {
   const { activeTab } = useAether();
 
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTo(0, 0);
+  }, [activeTab]);
+
   return (
     <div className="min-h-screen bg-obsidian-950 text-slate-100 flex flex-col selection:bg-aurora-cyan/30 selection:text-aurora-cyan">
       <Navbar />
