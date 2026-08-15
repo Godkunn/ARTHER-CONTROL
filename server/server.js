@@ -41,8 +41,6 @@ import {
   setKillSwitch,
   focusWindow,
   handleInputEvent,
-  resolveApproval,
-  triggerSimulatedApproval,
   addClipboardItem,
   addClipboardImageItem
 } from './mockWindowsApi.js';
@@ -302,53 +300,6 @@ app.post('/api/focus-window', (req, res) => {
   const focused = focusWindow(appName);
   broadcast({ type: 'window_changed', activeWindow: focused });
   res.json({ success: true, activeWindow: focused });
-});
-
-// Approvals
-app.get('/api/approvals', (req, res) => {
-  const s = getSystemStatus();
-  res.json({ pending: s.pendingApprovals, history: s.approvalHistory });
-});
-app.post('/api/approve', (req, res) => {
-  const { approvalId, decision } = req.body;
-  const result = resolveApproval(approvalId, decision);
-
-  // Also dispatch the key/click on the laptop to actually dismiss any real dialog or CLI prompt
-  const label = String(typeof decision === 'object' ? decision.label : (decision || '')).trim();
-  
-  if (/^[1-5]$/.test(label)) {
-    // Numeric choice for CLI / Antigravity prompt (1, 2, 3, 4, 5)
-    import('./realWindowsApi.js').then(m => {
-      m.realDispatchInput({ type: 'type_text', text: label + '\n' });
-    }).catch(() => {});
-  } else {
-    const isYes = !label.toLowerCase().startsWith('no') && !label.toLowerCase().includes('deny');
-    if (isYes) {
-      // Click "Yes" / "Allow" / "OK" / "Proceed" by typing 'y\n' + pressing Enter + Alt+Y
-      import('./realWindowsApi.js').then(m => {
-        m.realDispatchInput({ type: 'key_press', key: 'Enter' });
-        setTimeout(() => {
-          m.realDispatchInput({ type: 'type_text', text: 'y\n' });
-        }, 150);
-      }).catch(() => {});
-    } else {
-      // Deny — press Escape or 'n\n'
-      import('./realWindowsApi.js').then(m => {
-        m.realDispatchInput({ type: 'key_press', key: 'Escape' });
-        setTimeout(() => {
-          m.realDispatchInput({ type: 'type_text', text: 'n\n' });
-        }, 150);
-      }).catch(() => {});
-    }
-  }
-
-  if (result) {
-    broadcast({ type: 'approval_resolved', approval: result });
-    res.json({ success: true, resolved: result });
-  } else {
-    // Even if not in our queue (OS-level dialog), still dispatch keys
-    res.json({ success: true, dispatched: true, note: 'Key dispatched to active window' });
-  }
 });
 
 // Clipboard (Real 2-Way Sync)

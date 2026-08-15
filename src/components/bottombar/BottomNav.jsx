@@ -1,16 +1,14 @@
 // src/components/bottombar/BottomNav.jsx
 import React from 'react';
 import { useAether } from '../../context/AetherContext';
-import { Home, Monitor, Bell, AppWindow, Folder, Shield, Radio } from 'lucide-react';
+import { Home, Monitor, AppWindow, Folder, Shield, Radio } from 'lucide-react';
 
 export default function BottomNav() {
-  const { activeTab, setActiveTab, systemStatus } = useAether();
-  const pendingCount = systemStatus.pendingApprovals?.length || 0;
+  const { activeTab, setActiveTab } = useAether();
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: Home },
     { id: 'desktop', label: 'Screen', icon: Monitor },
-    { id: 'approvals', label: 'Approve', icon: Bell, badge: pendingCount },
     { id: 'apps', label: 'Apps', icon: AppWindow },
     { id: 'files', label: 'Files', icon: Folder },
     { id: 'nearby', label: 'Nearby', icon: Radio },
@@ -36,11 +34,6 @@ export default function BottomNav() {
             )}
             <div className="relative">
               <Icon className={`w-4 h-4 mb-0.5 ${isActive ? 'text-aurora-cyan' : ''}`} />
-              {item.badge > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-obsidian-950 animate-pulse">
-                  {item.badge}
-                </span>
-              )}
             </div>
             <span className={`text-[9px] font-mono ${isActive ? 'font-bold text-aurora-cyan' : ''}`}>
               {item.label}

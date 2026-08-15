@@ -15,8 +15,6 @@ export default function Dashboard() {
     setActiveTab,
     focusWindow,
     executeCommand,
-    resolveApproval,
-    triggerTestApproval,
     addClipboard
   } = useAether();
 
@@ -29,9 +27,6 @@ export default function Dashboard() {
   const [scanProgress, setScanProgress] = useState(0);
   const [unlockStatusText, setUnlockStatusText] = useState('');
   const scanIntervalRef = useRef(null);
-
-  const pendingApprovals = systemStatus.pendingApprovals || [];
-  const topApproval = pendingApprovals[0];
 
   const handleSendClipboard = (e) => {
     e.preventDefault();
@@ -193,86 +188,6 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
-
-      {/* PENDING APPROVAL RELAY BANNER (IF PENDING) */}
-      {topApproval && (
-        <div className="glass-panel p-4 rounded-2xl border-2 border-aurora-amber bg-gradient-to-r from-aurora-amber/10 via-obsidian-900 to-obsidian-950 shadow-glow-amber animate-pulse-fast">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="p-2 rounded-xl bg-aurora-amber/20 border border-aurora-amber/40 text-aurora-amber">
-                <AlertTriangle className="w-5 h-5" />
-              </span>
-              <div>
-                <span className="text-[10px] font-mono uppercase tracking-widest text-aurora-amber font-bold">
-                  🔔 Action Required ({topApproval.app})
-                </span>
-                <h3 className="text-base font-bold text-slate-100">{topApproval.title}</h3>
-              </div>
-            </div>
-            <span className="text-xs font-mono text-titanium-400">{topApproval.timestamp}</span>
-          </div>
-
-          <p className="text-xs text-titanium-300 font-mono my-3 bg-obsidian-950/80 p-2.5 rounded-xl border border-obsidian-750">
-            {topApproval.description}
-          </p>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-obsidian-750/80 mt-3">
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-mono text-titanium-400 uppercase">Option:</span>
-              {['1', '2', '3', '4', '5'].map(num => (
-                <button
-                  key={num}
-                  onClick={() => resolveApproval(topApproval.id, num)}
-                  className="w-6 h-6 rounded-lg bg-obsidian-950 border border-obsidian-750 text-titanium-200 hover:border-aurora-cyan hover:text-aurora-cyan text-[11px] font-mono font-bold flex items-center justify-center transition active:scale-95"
-                  title={`Send ${num} + Enter`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-end gap-2">
-            {Array.isArray(topApproval.actions) && topApproval.actions.map((act, idx) => {
-              const label = typeof act === 'object' ? act.label : act;
-              const type = typeof act === 'object' ? act.type : (label.startsWith('No') ? 'danger' : idx === 0 ? 'primary' : 'secondary');
-
-              if (type === 'primary') {
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => resolveApproval(topApproval.id, act)}
-                    className="px-4 py-2 rounded-xl bg-aurora-emerald text-obsidian-950 hover:bg-emerald-400 font-mono font-bold text-xs shadow-glow-emerald transition flex items-center space-x-1.5"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>{label}</span>
-                  </button>
-                );
-              } else if (type === 'danger') {
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => resolveApproval(topApproval.id, act)}
-                    className="px-4 py-2 rounded-xl bg-obsidian-800 hover:bg-aurora-pink/20 border border-obsidian-700 hover:border-aurora-pink text-slate-300 hover:text-aurora-pink text-xs font-mono font-bold transition"
-                  >
-                    {label}
-                  </button>
-                );
-              } else {
-                return (
-                  <button
-                    key={idx}
-                    onClick={() => resolveApproval(topApproval.id, act)}
-                    className="px-3 py-2 rounded-xl bg-obsidian-900 hover:bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan text-xs font-mono font-semibold transition"
-                  >
-                    {label}
-                  </button>
-                );
-              }
-            })}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* System Quick Hardware Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
