@@ -218,9 +218,11 @@ function checkAntigravityApproval() {
     
     // Sort by most recently modified
     convDirs.sort((a, b) => {
-      const statA = fs.statSync(path.join(brainPath, a.name));
-      const statB = fs.statSync(path.join(brainPath, b.name));
-      return statB.mtimeMs - statA.mtimeMs;
+      try {
+        const statA = fs.statSync(path.join(brainPath, a.name));
+        const statB = fs.statSync(path.join(brainPath, b.name));
+        return statB.mtimeMs - statA.mtimeMs;
+      } catch (_) { return 0; }
     });
 
     if (convDirs.length === 0) return null;
@@ -229,43 +231,82 @@ function checkAntigravityApproval() {
     
     if (!fs.existsSync(transcriptFile)) return null;
     
-    // Read last 8KB of transcript file
+    // Read up to 128KB from the end to ensure we never truncate large JSON lines
     const stat = fs.statSync(transcriptFile);
-    const readSize = Math.min(stat.size, 8192);
+    if (stat.size === 0) return null;
+    const readSize = Math.min(stat.size, 131072);
     const buf = Buffer.alloc(readSize);
     const fd = fs.openSync(transcriptFile, 'r');
     fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
     fs.closeSync(fd);
 
     const chunk = buf.toString('utf8');
-    const lines = chunk.trim().split('\n').filter(l => l.trim().length > 0);
-    if (lines.length === 0) return null;
+    const rawLines = chunk.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (rawLines.length === 0) return null;
 
-    const lastLineRaw = lines[lines.length - 1];
-    const lastObj = JSON.parse(lastLineRaw);
+    // Parse the most recent valid JSON line from the end
+    let lastObj = null;
+    for (let i = rawLines.length - 1; i >= 0; i--) {
+      try {
+        lastObj = JSON.parse(rawLines[i]);
+        if (lastObj && typeof lastObj === 'object') break;
+      } catch (_) {
+        // Partial line due to buffer cut, continue checking previous line
+      }
+    }
 
-    // If last action is from MODEL and it's waiting for feedback / plan approval / questions
-    if (lastObj && (lastObj.source === 'MODEL' || lastObj.source === 'SYSTEM')) {
+    if (!lastObj) return null;
+
+    // If last step was from the USER, then any previous question/approval was already answered!
+    if (lastObj.source === 'USER_EXPLICIT' || lastObj.type === 'USER_INPUT') {
+      return null;
+    }
+
+    // If last action is from MODEL or SYSTEM and waiting for feedback / plan approval / questions
+    if (lastObj.source === 'MODEL' || lastObj.source === 'SYSTEM' || lastObj.type === 'PLANNER_RESPONSE') {
       const rawText = JSON.stringify(lastObj);
       const isPlanFeedback = rawText.includes('"RequestFeedback":true') || rawText.includes('implementation_plan.md');
       const isAskQuestion = rawText.includes('"name":"ask_question"');
-      const isPrompting = rawText.includes('Approval Required') || rawText.includes('Proceed') || rawText.includes('feedback');
+      const isPrompting = rawText.includes('Approval Required') || rawText.includes('Proceed') || rawText.includes('user review');
 
       if (isPlanFeedback || isAskQuestion || isPrompting) {
+        let extractedTitle = isPlanFeedback ? 'Plan Review & Proceed Approval' : (isAskQuestion ? 'Question / Choice Needed' : 'Action Required');
+        let extractedDesc = isPlanFeedback
+          ? 'Antigravity has created/updated the implementation plan and is waiting for your review. Tap Proceed on phone to execute.'
+          : 'Antigravity is waiting for input or tool execution confirmation.';
+        let extractedActions = [
+          { id: '1', label: '1. Proceed / Allow', type: 'primary' },
+          { id: '2', label: '2. Deny / Cancel', type: 'danger' }
+        ];
+
+        // If ask_question tool was called, extract the real question and options!
+        try {
+          if (Array.isArray(lastObj.tool_calls)) {
+            const qTool = lastObj.tool_calls.find(t => t && t.name === 'ask_question');
+            if (qTool && qTool.args && qTool.args.questions && qTool.args.questions.length > 0) {
+              const q = qTool.args.questions[0];
+              extractedTitle = q.question || extractedTitle;
+              extractedDesc = `Question: "${q.question}". Select your choice below:`;
+              if (Array.isArray(q.options) && q.options.length > 0) {
+                extractedActions = q.options.map((opt, idx) => ({
+                  id: String(idx + 1),
+                  label: `${idx + 1}. ${opt}`,
+                  type: idx === 0 ? 'primary' : 'secondary'
+                }));
+              }
+            }
+          }
+        } catch (_) {}
+
         return {
-          id: `antigravity-step-${lastObj.step_index || Date.now()}`,
+          id: `antigravity-step-${lastObj.step_index ?? Date.now()}`,
           app: 'Antigravity AI',
-          title: isPlanFeedback ? 'Plan Review & Proceed Approval' : (isAskQuestion ? 'Question / Choice Needed' : 'Action Required'),
-          description: isPlanFeedback
-            ? 'Antigravity has created/updated the implementation plan and is waiting for your review. Tap Proceed on phone to execute.'
-            : 'Antigravity is waiting for input or tool execution confirmation.',
+          title: extractedTitle,
+          description: extractedDesc,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           severity: 'danger',
           isSystemDialog: true,
-          actions: [
-            { id: '1', label: '1. Proceed / Allow', type: 'primary' },
-            { id: '2', label: '2. Deny / Cancel', type: 'danger' }
-          ]
+          actions: extractedActions
         };
       }
     }
