@@ -2,13 +2,14 @@
 import React, { useState, useRef } from 'react';
 import { useAether } from '../../context/AetherContext';
 import {
-  Monitor, Zap, Shield, Volume2, VolumeX, Lock, Cpu, Eye,
-  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, RotateCcw, Fingerprint, Scissors, Maximize, Plus, X, Settings, HardDrive, Info, Sparkles
+  Monitor, Zap, Shield, Volume2, VolumeX, Lock, Cpu, Eye, Download,
+  Copy, Check, AlertTriangle, ArrowUpRight, Code2, Terminal, Globe, FileCode, Folder, Activity, BatteryCharging, RefreshCw, RotateCcw, Fingerprint, Scissors, Maximize, Plus, X, Settings, HardDrive, Info, Sparkles, CornerDownLeft
 } from 'lucide-react';
 
 export default function Dashboard() {
   const {
     systemStatus,
+    setSystemStatus,
     streamMode,
     setStreamMode,
     setActiveTab,
@@ -215,7 +216,22 @@ export default function Dashboard() {
             {topApproval.description}
           </p>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-obsidian-750/80 mt-3">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-mono text-titanium-400 uppercase">Option:</span>
+              {['1', '2', '3', '4', '5'].map(num => (
+                <button
+                  key={num}
+                  onClick={() => resolveApproval(topApproval.id, num)}
+                  className="w-6 h-6 rounded-lg bg-obsidian-950 border border-obsidian-750 text-titanium-200 hover:border-aurora-cyan hover:text-aurora-cyan text-[11px] font-mono font-bold flex items-center justify-center transition active:scale-95"
+                  title={`Send ${num} + Enter`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
             {Array.isArray(topApproval.actions) && topApproval.actions.map((act, idx) => {
               const label = typeof act === 'object' ? act.label : act;
               const type = typeof act === 'object' ? act.type : (label.startsWith('No') ? 'danger' : idx === 0 ? 'primary' : 'secondary');
@@ -253,6 +269,7 @@ export default function Dashboard() {
                 );
               }
             })}
+            </div>
           </div>
         </div>
       )}
@@ -275,15 +292,19 @@ export default function Dashboard() {
         </div>
 
         {/* RAM Metric Card */}
-        <div className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between">
+        <div 
+          onClick={() => executeCommand('CLEAR_RAM')}
+          className="glass-card p-3.5 rounded-xl border border-obsidian-750 flex items-center justify-between cursor-pointer hover:border-aurora-purple/40 active:scale-95 transition group"
+          title="Tap to Optimize & Free Memory"
+        >
           <div className="space-y-1">
-            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider">RAM Usage</p>
+            <p className="text-[10px] font-mono text-titanium-400 uppercase tracking-wider group-hover:text-aurora-purple transition">RAM Usage (Tap to Clear)</p>
             <p className="text-lg font-bold text-slate-100 font-mono">{systemStatus.ramUsage || 0}%</p>
             <p className="text-[9px] font-mono text-titanium-500">
               {systemStatus.memInfo?.used ? `${systemStatus.memInfo.used} / ${systemStatus.memInfo.total} GB` : 'Live'}
             </p>
           </div>
-          <Activity className="w-5 h-5 text-aurora-purple opacity-80" />
+          <Activity className="w-5 h-5 text-aurora-purple opacity-80 group-hover:opacity-100 group-hover:scale-110 transition" />
         </div>
 
         {/* Battery Metric Card */}
@@ -308,7 +329,9 @@ export default function Dashboard() {
         }`}>
           {/* Mute toggle icon — animated swap on mute/unmute */}
           <button
-            onClick={() => executeCommand('TOGGLE_MUTE')}
+            onClick={() => {
+              executeCommand('TOGGLE_MUTE');
+            }}
             title={systemStatus.isMuted ? 'Click to Unmute' : 'Click to Mute'}
             className={`p-2 rounded-xl shrink-0 transition-all duration-200 active:scale-90 ${
               systemStatus.isMuted
@@ -329,22 +352,28 @@ export default function Dashboard() {
             <p className={`text-[9px] font-mono uppercase tracking-wider leading-none font-bold ${
               systemStatus.isMuted ? 'text-aurora-pink' : 'text-titanium-400'
             }`}>
-              {systemStatus.isMuted ? '🔇 Audio Muted' : 'Master Audio'}
+              Master Audio
             </p>
             <p className={`text-sm font-bold font-mono leading-tight mt-0.5 transition-colors duration-200 ${
               systemStatus.isMuted ? 'text-aurora-pink font-extrabold' : 'text-slate-100'
             }`}>
-              {systemStatus.isMuted ? 'SILENT' : `${systemStatus.volume || 75}%`}
+              {systemStatus.isMuted ? 'MUTED' : `${systemStatus.volume || 75}%`}
             </p>
           </div>
           {/* Vol down / up compact buttons */}
           <button
-            onClick={() => executeCommand('VOLUME_DOWN')}
+            onClick={() => {
+              executeCommand('VOLUME_DOWN');
+              setSystemStatus(prev => ({ ...prev, volume: Math.max(0, (prev.volume || 0) - 2) }));
+            }}
             title="Decrease Volume"
             className="w-7 h-7 rounded-lg glass-card flex items-center justify-center hover:border-aurora-cyan/40 hover:bg-white/5 active:scale-90 transition text-titanium-300 hover:text-white font-mono text-sm font-bold shrink-0"
           >−</button>
           <button
-            onClick={() => executeCommand('VOLUME_UP')}
+            onClick={() => {
+              executeCommand('VOLUME_UP');
+              setSystemStatus(prev => ({ ...prev, volume: Math.min(100, (prev.volume || 0) + 2) }));
+            }}
             title="Increase Volume"
             className="w-7 h-7 rounded-lg glass-card flex items-center justify-center hover:border-aurora-cyan/40 hover:bg-white/5 active:scale-90 transition text-aurora-cyan hover:text-cyan-300 font-mono text-sm font-bold shrink-0"
           >+</button>
@@ -410,27 +439,27 @@ export default function Dashboard() {
 
           {/* ROW 2 */}
           <button
-            onClick={() => setShowUnlockModal(true)}
+            onClick={() => executeCommand('UNLOCK_PC')}
             className={`p-2.5 rounded-xl text-center flex flex-col items-center justify-center space-y-1 active:scale-95 transition ${
               systemStatus.isLocked
-              ? 'bg-aurora-emerald/25 border border-aurora-emerald shadow-glow-emerald hover:bg-aurora-emerald/35' 
-              : 'glass-card hover:border-aurora-emerald/40'
+              ? 'bg-aurora-cyan/25 border border-aurora-cyan shadow-glow-cyan hover:bg-aurora-cyan/35' 
+              : 'glass-card hover:border-aurora-cyan/40'
             }`}
-            title="Wake & Remote Unlock Laptop with Scan Codes"
+            title="Wake Display Only (PIN Injection Disabled for Safety)"
           >
-            <Zap className="w-4 h-4 text-aurora-emerald" />
+            <Zap className="w-4 h-4 text-aurora-cyan" />
             <span className={`text-[10px] font-mono ${
-              systemStatus.isLocked ? 'text-aurora-emerald font-bold' : 'text-titanium-300'
-            }`}>{systemStatus.isLocked ? 'Unlock (Locked)' : 'Unlock'}</span>
+              systemStatus.isLocked ? 'text-aurora-cyan font-bold' : 'text-titanium-300'
+            }`}>Wake</span>
           </button>
 
           <button
-            onClick={() => executeCommand('WAKE_DISPLAY')}
-            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 border-aurora-cyan/30 hover:border-aurora-cyan active:scale-95 transition"
-            title="Wake Display"
+            onClick={() => executeCommand('ENTER')}
+            className="p-2.5 rounded-xl glass-card text-center flex flex-col items-center justify-center space-y-1 hover:border-aurora-cyan/40 active:scale-95 transition"
+            title="Press Enter"
           >
-            <Monitor className="w-4 h-4 text-aurora-cyan" />
-            <span className="text-[10px] font-mono text-aurora-cyan font-bold">Wake</span>
+            <CornerDownLeft className="w-4 h-4 text-aurora-cyan" />
+            <span className="text-[10px] font-mono text-titanium-300">Enter</span>
           </button>
 
           <button
@@ -518,7 +547,7 @@ export default function Dashboard() {
       </div>
 
       {/* UNLOCK PC POPUP MODAL WITH HAPTIC BIOMETRIC SENSOR */}
-      {showUnlockModal && (
+      {/* {showUnlockModal && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 animate-fadeIn">
           <div className="glass-panel max-w-sm w-full p-5 rounded-3xl border border-aurora-emerald/50 space-y-4 relative shadow-glow-emerald">
             <div className="flex items-center justify-between">
@@ -547,7 +576,6 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* INTERACTIVE BIOMETRIC FINGERPRINT SENSOR POD */}
             <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-obsidian-950/80 border border-obsidian-800 space-y-2">
               <div
                 onTouchStart={startFingerprintScan}
@@ -561,7 +589,6 @@ export default function Dashboard() {
                     : 'glass-card border border-obsidian-700 hover:border-aurora-cyan/50 active:scale-95'
                 }`}
               >
-                {/* SVG Progress Ring */}
                 {bioPrompting && (
                   <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
                     <circle
@@ -611,7 +638,6 @@ export default function Dashboard() {
                 className="w-full bg-obsidian-950 border border-obsidian-750 rounded-xl px-3 py-2.5 text-center text-sm font-mono text-slate-100 tracking-widest focus:outline-none focus:border-aurora-emerald"
               />
 
-              {/* Fast 1-Tap Numeric Pad on Mobile */}
               <div className="grid grid-cols-3 gap-1.5 pt-1">
                 {['1','2','3','4','5','6','7','8','9','Clr','0','⌫'].map((k) => (
                   <button
@@ -661,7 +687,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* SYSTEM SPECS & TELEMETRY INSPECTOR MODAL */}
       {showDiagModal && (
@@ -794,14 +820,64 @@ export default function Dashboard() {
           </button>
         </form>
 
-        {systemStatus.clipboard?.[0] && (
-          <div className="bg-obsidian-950/80 p-2.5 rounded-xl border border-obsidian-800 text-xs font-mono flex items-center justify-between">
-            <span className="text-titanium-300 truncate max-w-[80%]">
-              Latest: {systemStatus.clipboard[0].text}
-            </span>
-            <span className="text-[10px] text-titanium-500">{systemStatus.clipboard[0].source || 'Laptop'}</span>
-          </div>
-        )}
+        {/* Clipboard items list (Text + Image support) */}
+        <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin">
+          {(systemStatus.clipboard && systemStatus.clipboard.length > 0) ? (
+            systemStatus.clipboard.slice(0, 8).map((item, idx) => (
+              <div key={item.id || idx} className="bg-obsidian-950/80 p-2.5 rounded-xl border border-obsidian-800 text-xs font-mono flex items-center justify-between gap-2">
+                {item.type === 'image' && item.data ? (
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <img
+                      src={`data:image/jpeg;base64,${item.data}`}
+                      alt="Copied screenshot"
+                      className="w-14 h-10 object-cover rounded-lg border border-obsidian-700 shrink-0 shadow"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-slate-200 font-bold text-[11px] truncate">📸 Copied Image / Screenshot</p>
+                      <p className="text-[10px] text-titanium-500">{item.time || 'Live'} • {item.source || 'Laptop'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="min-w-0 flex-1">
+                    <p className="text-titanium-200 truncate font-mono">{item.text}</p>
+                    <p className="text-[9px] text-titanium-500">{item.time || 'Live'} • {item.source || 'Laptop'}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {item.type === 'image' && item.data ? (
+                    <a
+                      href={`data:image/jpeg;base64,${item.data}`}
+                      download={`clipboard_image_${Date.now()}.jpg`}
+                      className="px-2.5 py-1.5 rounded-lg bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan hover:bg-aurora-cyan/30 text-[10px] font-mono font-bold flex items-center gap-1 transition shadow-glow-cyan"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Save</span>
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (navigator.clipboard?.writeText) {
+                          navigator.clipboard.writeText(item.text);
+                          setCopiedSuccess(true);
+                          setTimeout(() => setCopiedSuccess(false), 2000);
+                        }
+                      }}
+                      className="px-2.5 py-1.5 rounded-lg bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white text-[10px] font-mono flex items-center gap-1 transition"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="bg-obsidian-950/80 p-2.5 rounded-xl border border-obsidian-800 text-xs font-mono text-center text-titanium-500">
+              Clipboard is empty. Copy text or take a screenshot on laptop to view here.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

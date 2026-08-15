@@ -1,6 +1,7 @@
 @echo off
-title AETHER CONTROL - Ultra-Low Latency Cockpit ^& Remote Orchestrator
 cd /d "%~dp0"
+
+title AETHER CONTROL - Ultra-Low Latency Cockpit ^& Remote Orchestrator
 cls
 color 0B
 
@@ -20,6 +21,9 @@ echo [*] Terminating lingering background engines...
 taskkill /F /IM input_daemon.exe 2>nul
 taskkill /F /IM node.exe 2>nul
 timeout /t 1 /nobreak >nul
+
+echo [*] Optimizing Network Route (Wi-Fi priority for zero data consumption)...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$wifi = Get-NetIPInterface -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like '*Wi-Fi*' -or $_.InterfaceAlias -like '*Wireless*' }; if ($wifi) { Set-NetIPInterface -InterfaceIndex $wifi.InterfaceIndex -InterfaceMetric 15 -ErrorAction SilentlyContinue }; $usb = Get-NetIPInterface -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like '*Ethernet*' -or $_.InterfaceAlias -like '*NDIS*' -or $_.InterfaceAlias -like '*USB*' }; if ($usb) { Set-NetIPInterface -InterfaceIndex $usb.InterfaceIndex -InterfaceMetric 80 -ErrorAction SilentlyContinue }" >nul 2>&1
 
 echo [*] Compiling Native C# Input ^& Fast Screen Capture Daemon...
 if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe" (

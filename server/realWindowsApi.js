@@ -24,16 +24,19 @@ import {
   getCachedHardwareStats,
   getCachedRunningApps,
   getCachedClipboardText,
+  getCachedClipboardImage,
   nativeFocusProcess,
   nativeSetClipboard,
   nativeCaptureScreen,
   nativeUnlock,
   nativeToggleTaskmgr,
+  nativeClearRam,
   nativeSnip,
   nativeVolumeUp,
   nativeVolumeDown,
   nativeVolumeMute,
-  nativeReopenTab
+  nativeReopenTab,
+  nativeTypeText
 } from './nativeInputManager.js';
 
 // Initialize power keep-awake on startup
@@ -162,6 +165,10 @@ export function getRealClipboardText() {
   return getCachedClipboardText();
 }
 
+export function getRealClipboardImage() {
+  return getCachedClipboardImage();
+}
+
 export function setRealClipboardText(text) {
   return nativeSetClipboard(text);
 }
@@ -185,13 +192,15 @@ export function getLanInfo() {
       const nameLower = name.toLowerCase();
 
       if (ip.startsWith('192.168.43.') || ip.startsWith('192.168.42.')) {
-        type = 'android_hotspot'; label = 'Phone Hotspot (Android)';
+        type = 'android_hotspot'; label = 'USB / Android Hotspot';
       } else if (ip.startsWith('172.20.10.')) {
         type = 'iphone_hotspot'; label = 'Phone Hotspot (iPhone)';
-      } else if (nameLower.includes('rndis') || nameLower.includes('android') || nameLower.includes('usb')) {
-        type = 'usb'; label = 'USB Tethering';
-      } else if (nameLower.includes('virtual') || nameLower.includes('vmware') || nameLower.includes('vbox')) {
+      } else if (nameLower.includes('rndis') || nameLower.includes('android') || nameLower.includes('usb') || nameLower.includes('ethernet 2')) {
+        type = 'usb'; label = 'USB Cable Tethering';
+      } else if (nameLower.includes('virtual') || nameLower.includes('vmware') || nameLower.includes('vbox') || nameLower.includes('tap')) {
         type = 'virtual'; label = 'Virtual Adapter (skip)';
+      } else if (nameLower.includes('wi-fi') || nameLower.includes('wireless') || nameLower.includes('wlan')) {
+        type = 'wifi'; label = 'Wi-Fi Network';
       } else if (nameLower.includes('ethernet') || nameLower.includes('local area')) {
         type = 'ethernet'; label = 'Ethernet';
       }
@@ -202,9 +211,8 @@ export function getLanInfo() {
       const entry = { name, ip, type, label, url: `http://${ip}:3001` };
       result.interfaces.push(entry);
 
-      // Prefer phone hotspot > ethernet > wifi as primary (most likely active scenario)
       if (!result.primary) result.primary = entry;
-      if (type === 'android_hotspot' || type === 'iphone_hotspot') result.primary = entry;
+      if (type === 'usb' || type === 'android_hotspot') result.primary = entry;
     }
   }
 
@@ -389,8 +397,8 @@ export function realExecuteSystemCommand(cmd, payload = null) {
       case 'UNLOCK_PC':
         nativeWake();
         wakeDisplay();
-        const pinCode = payload && (payload.pin || payload.code) ? String(payload.pin || payload.code).trim() : '';
-        nativeUnlock(pinCode);
+        // const pinCode = payload && (payload.pin || payload.code) ? String(payload.pin || payload.code).trim() : '';
+        // nativeUnlock(pinCode); // [DISABLED FOR SAFETY] - No remote PIN injection
         break;
       case 'SNIP':
         nativeSnip();
@@ -426,6 +434,10 @@ export function realExecuteSystemCommand(cmd, payload = null) {
         exec('powershell -NoProfile -Command "Start-Process wt.exe"', (err) => {
           if (err) exec('powershell -NoProfile -Command "Start-Process powershell.exe"', () => {});
         });
+        break;
+      case 'CLEAR_RAM':
+        nativeClearRam();
+        exec('powershell -NoProfile -Command "Clear-Content -Path $env:TEMP\\* -Force -ErrorAction SilentlyContinue; [GC]::Collect(); [GC]::WaitForPendingFinalizers();"', () => {});
         break;
     }
   } catch (_) {}
@@ -464,9 +476,9 @@ export function realDispatchInput(event) {
     } else if (event.type === 'type_text') {
       const text = event.text || '';
       if (text) {
-        const escaped = text.replace(/([+^%~(){}[\]])/g, '{$1}');
-        const handled = nativeSendKeys(escaped);
+        const handled = nativeTypeText(text);
         if (!handled) {
+          const escaped = text.replace(/([+^%~(){}[\]])/g, '{$1}');
           const ps = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${escaped.replace(/'/g, "''")}')`;
           exec(`powershell -NoProfile -NonInteractive -Command "${ps.replace(/"/g, '\\"')}"`, () => {});
         }

@@ -9,6 +9,7 @@ import path from 'path';
 import os from 'os';
 import { exec as execChild } from 'child_process';
 import { fileURLToPath } from 'url';
+import loudness from 'loudness';
 import { initializeTunnels, getTunnelInfo } from './tunnelManager.js';
 import {
   startMdns, getMdnsHost,
@@ -32,6 +33,7 @@ import {
   getRealRunningApps,
   focusRealWindow,
   getRealClipboardText,
+  getRealClipboardImage,
   setRealClipboardText
 } from './realWindowsApi.js';
 import {
@@ -41,7 +43,8 @@ import {
   handleInputEvent,
   resolveApproval,
   triggerSimulatedApproval,
-  addClipboardItem
+  addClipboardItem,
+  addClipboardImageItem
 } from './mockWindowsApi.js';
 import {
   getDownloadedInstallers,
@@ -65,10 +68,10 @@ const wss = new WebSocketServer({ server });
 
 const clients = new Set();
 
-// Start tunnels
-initializeTunnels(PORT, (tunnelInfo) => {
-  broadcast({ type: 'tunnel_update', tunnel: tunnelInfo });
-});
+// Start tunnels (DISABLED FOR SAFETY - Public internet exposure is dangerous without authentication)
+// initializeTunnels(PORT, (tunnelInfo) => {
+//   broadcast({ type: 'tunnel_update', tunnel: tunnelInfo });
+// });
 
 // Start mDNS (zero-internet local discovery)
 const mdnsHost = startMdns(PORT);
@@ -145,12 +148,22 @@ startScreenshare();
 // SYSTEM TELEMETRY LOOP (Real live hardware stats)
 // ─────────────────────────────────────────────
 let lastKnownClip = '';
+let lastKnownClipImg = '';
 
-setInterval(() => {
+setInterval(async () => {
   const real = getRealSystemStats();
   const apps = getRealRunningApps();
   const clip = getRealClipboardText();
+  const clipImg = getRealClipboardImage();
   const status = getSystemStatus();
+
+  // Try to get real volume
+  try {
+    const vol = await loudness.getVolume();
+    const muted = await loudness.getMuted();
+    status.volume = vol;
+    status.isMuted = muted;
+  } catch (e) {}
 
   // Merge real stats into system status
   status.cpuUsage = real.cpuUsage;
@@ -160,8 +173,8 @@ setInterval(() => {
   status.isLocked = real.isLocked;
   status.activeWindow = real.activeWindow;
   status.runningApps = apps;
-  status.telemetry.latency = Math.max(4, Math.min(60, (status.telemetry.latency || 12) + (Math.floor(Math.random() * 3) - 1)));
-  status.telemetry.rssi = Math.max(-80, Math.min(-35, (status.telemetry.rssi || -50) + (Math.floor(Math.random() * 3) - 1)));
+  status.telemetry.latency = 2; // Direct Wi-Fi LAN ping is usually 1-3ms
+  status.telemetry.rssi = -40; // Excellent local signal
 
   broadcast({
     type: 'telemetry_update',
@@ -173,20 +186,92 @@ setInterval(() => {
     isLocked: real.isLocked,
     activeWindow: real.activeWindow,
     runningApps: apps,
+    volume: status.volume,
+    isMuted: status.isMuted,
     memInfo: { total: real.totalMemGB, used: real.usedMemGB, free: real.freeMemGB }
   });
 
   if (clip && clip !== lastKnownClip) {
     lastKnownClip = clip;
+    lastKnownClipImg = '';
     const item = addClipboardItem(clip, 'Laptop');
     broadcast({ type: 'clipboard_updated', item });
+  } else if (clipImg && clipImg !== lastKnownClipImg) {
+    lastKnownClipImg = clipImg;
+    lastKnownClip = '';
+    const item = addClipboardImageItem(clipImg, 'Laptop');
+    broadcast({ type: 'clipboard_updated', item });
   }
-}, 2000);
+}, 500);
 
 // ─────────────────────────────────────────────
-// BIDIRECTIONAL REAL WINDOWS DIALOG/APPROVAL DETECTOR & AUTO-DISMISSAL
+// ANTIGRAVITY BRAIN & SYSTEM DIALOG/APPROVAL DETECTOR
 // ─────────────────────────────────────────────
 let activeSystemDialogId = null;
+const brainPath = path.join(os.homedir(), '.gemini', 'antigravity', 'brain');
+
+function checkAntigravityApproval() {
+  try {
+    if (!fs.existsSync(brainPath)) return null;
+    const entries = fs.readdirSync(brainPath, { withFileTypes: true });
+    const convDirs = entries.filter(e => e.isDirectory() && e.name !== 'temp' && e.name !== 'cache');
+    
+    // Sort by most recently modified
+    convDirs.sort((a, b) => {
+      const statA = fs.statSync(path.join(brainPath, a.name));
+      const statB = fs.statSync(path.join(brainPath, b.name));
+      return statB.mtimeMs - statA.mtimeMs;
+    });
+
+    if (convDirs.length === 0) return null;
+    const latestConv = convDirs[0].name;
+    const transcriptFile = path.join(brainPath, latestConv, '.system_generated', 'logs', 'transcript.jsonl');
+    
+    if (!fs.existsSync(transcriptFile)) return null;
+    
+    // Read last 8KB of transcript file
+    const stat = fs.statSync(transcriptFile);
+    const readSize = Math.min(stat.size, 8192);
+    const buf = Buffer.alloc(readSize);
+    const fd = fs.openSync(transcriptFile, 'r');
+    fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+    fs.closeSync(fd);
+
+    const chunk = buf.toString('utf8');
+    const lines = chunk.trim().split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) return null;
+
+    const lastLineRaw = lines[lines.length - 1];
+    const lastObj = JSON.parse(lastLineRaw);
+
+    // If last action is from MODEL and it's waiting for feedback / plan approval / questions
+    if (lastObj && (lastObj.source === 'MODEL' || lastObj.source === 'SYSTEM')) {
+      const rawText = JSON.stringify(lastObj);
+      const isPlanFeedback = rawText.includes('"RequestFeedback":true') || rawText.includes('implementation_plan.md');
+      const isAskQuestion = rawText.includes('"name":"ask_question"');
+      const isPrompting = rawText.includes('Approval Required') || rawText.includes('Proceed') || rawText.includes('feedback');
+
+      if (isPlanFeedback || isAskQuestion || isPrompting) {
+        return {
+          id: `antigravity-step-${lastObj.step_index || Date.now()}`,
+          app: 'Antigravity AI',
+          title: isPlanFeedback ? 'Plan Review & Proceed Approval' : (isAskQuestion ? 'Question / Choice Needed' : 'Action Required'),
+          description: isPlanFeedback
+            ? 'Antigravity has created/updated the implementation plan and is waiting for your review. Tap Proceed on phone to execute.'
+            : 'Antigravity is waiting for input or tool execution confirmation.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          severity: 'danger',
+          isSystemDialog: true,
+          actions: [
+            { id: '1', label: '1. Proceed / Allow', type: 'primary' },
+            { id: '2', label: '2. Deny / Cancel', type: 'danger' }
+          ]
+        };
+      }
+    }
+  } catch (_) {}
+  return null;
+}
 
 setInterval(() => {
   try {
@@ -195,19 +280,31 @@ setInterval(() => {
     const rawTitle = status.activeWindow;
     const activeTitle = typeof rawTitle === 'string' ? rawTitle : (rawTitle && typeof rawTitle === 'object' ? (rawTitle.title || rawTitle.name || '') : '');
 
-    if (!activeTitle) return;
+    // Check Antigravity engine first
+    const agApproval = checkAntigravityApproval();
 
-    const isDialogActive = /User Account Control|consent\.exe|Credential UI|Windows Security|Administrator|SmartScreen|Windows Defender|Confirm|Permission|Elevat/i.test(activeTitle);
+    // Check Windows system dialogs
+    const apps = getRealRunningApps();
+    const isDialogActive = /User Account Control|consent\.exe|Credential UI|Windows Security|Administrator|SmartScreen|Windows Defender|Confirm|Permission|Elevat/i.test(activeTitle) ||
+      apps.some(a => /Approval Required|Antigravity Confirm|Confirm Command/i.test(a.title));
 
-    if (isDialogActive) {
-      const dialogId = `dlg-${activeTitle.substring(0, 20)}`;
+    if (agApproval) {
+      if (activeSystemDialogId !== agApproval.id) {
+        activeSystemDialogId = agApproval.id;
+        status.pendingApprovals = (status.pendingApprovals || []).filter(a => !a.isSystemDialog);
+        status.pendingApprovals.unshift(agApproval);
+        broadcast({ type: 'approval_required', approval: agApproval });
+      }
+    } else if (isDialogActive) {
+      const displayTitle = activeTitle.length > 5 ? activeTitle : 'System / Agent Prompt';
+      const dialogId = `dlg-${displayTitle.substring(0, 24).replace(/[^a-zA-Z0-9]/g, '_')}`;
       if (activeSystemDialogId !== dialogId) {
         activeSystemDialogId = dialogId;
         const approval = {
           id: dialogId,
-          app: 'Windows System',
-          title: activeTitle,
-          description: `Active prompt requires elevation/action: "${activeTitle}". Tap Allow on phone to confirm.`,
+          app: activeTitle.includes('Antigravity') ? 'Antigravity AI' : 'Windows System',
+          title: displayTitle,
+          description: `Active prompt detected on laptop: "${displayTitle}". Tap Allow on phone to confirm.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           severity: 'danger',
           isSystemDialog: true,
@@ -221,6 +318,7 @@ setInterval(() => {
         broadcast({ type: 'approval_required', approval });
       }
     } else if (activeSystemDialogId) {
+      // Prompt has closed or was approved on laptop!
       const closedId = activeSystemDialogId;
       activeSystemDialogId = null;
       const existingIndex = (status.pendingApprovals || []).findIndex(a => a.id === closedId);
@@ -239,7 +337,7 @@ setInterval(() => {
       }
     }
   } catch (_) {}
-}, 800);
+}, 500);
 
 
 // ─────────────────────────────────────────────
@@ -348,25 +446,33 @@ app.post('/api/approve', (req, res) => {
   const { approvalId, decision } = req.body;
   const result = resolveApproval(approvalId, decision);
 
-  // Also dispatch the key/click on the laptop to actually dismiss any real dialog
-  const label = typeof decision === 'object' ? decision.label : (decision || '');
-  const isYes = !label.toLowerCase().startsWith('no') && !label.toLowerCase().includes('deny');
-
-  if (isYes) {
-    // Click "Yes" / "Allow" / "OK" button on any active UAC or dialog by pressing Enter
-    // Also try clicking the UAC Yes button at approximate screen position
+  // Also dispatch the key/click on the laptop to actually dismiss any real dialog or CLI prompt
+  const label = String(typeof decision === 'object' ? decision.label : (decision || '')).trim();
+  
+  if (/^[1-5]$/.test(label)) {
+    // Numeric choice for CLI / Antigravity prompt (1, 2, 3, 4, 5)
     import('./realWindowsApi.js').then(m => {
-      m.realDispatchInput({ type: 'key_press', key: '~' }); // Enter key (SendKeys ~ = Enter)
-      // Also press Alt+Y for UAC dialogs that use Alt+Y shortcut
-      setTimeout(() => {
-        m.realDispatchInput({ type: 'key_press', key: '%{Y}' }); // Alt+Y
-      }, 300);
+      m.realDispatchInput({ type: 'type_text', text: label + '\n' });
     }).catch(() => {});
   } else {
-    // Deny — press Escape or Tab+Enter to No
-    import('./realWindowsApi.js').then(m => {
-      m.realDispatchInput({ type: 'key_press', key: '{ESC}' });
-    }).catch(() => {});
+    const isYes = !label.toLowerCase().startsWith('no') && !label.toLowerCase().includes('deny');
+    if (isYes) {
+      // Click "Yes" / "Allow" / "OK" / "Proceed" by typing 'y\n' + pressing Enter + Alt+Y
+      import('./realWindowsApi.js').then(m => {
+        m.realDispatchInput({ type: 'key_press', key: 'Enter' });
+        setTimeout(() => {
+          m.realDispatchInput({ type: 'type_text', text: 'y\n' });
+        }, 150);
+      }).catch(() => {});
+    } else {
+      // Deny — press Escape or 'n\n'
+      import('./realWindowsApi.js').then(m => {
+        m.realDispatchInput({ type: 'key_press', key: 'Escape' });
+        setTimeout(() => {
+          m.realDispatchInput({ type: 'type_text', text: 'n\n' });
+        }, 150);
+      }).catch(() => {});
+    }
   }
 
   if (result) {
@@ -384,10 +490,14 @@ app.post('/api/trigger-approval', (req, res) => {
   res.json({ success: true, approval: a });
 });
 
-// Clipboard
+// Clipboard (Real 2-Way Sync)
 app.post('/api/clipboard', (req, res) => {
   const { text, source } = req.body;
-  const item = addClipboardItem(text, source);
+  if (text) {
+    setRealClipboardText(text); // Writes directly to Windows Clipboard on laptop!
+    lastKnownClip = text;
+  }
+  const item = addClipboardItem(text, source || 'Phone');
   broadcast({ type: 'clipboard_updated', item });
   res.json({ success: true, item });
 });
@@ -400,11 +510,12 @@ app.post('/api/command', (req, res) => {
   switch (command) {
     case 'VOLUME_UP': status.volume = Math.min(100, status.volume + 10); break;
     case 'VOLUME_DOWN': status.volume = Math.max(0, status.volume - 10); break;
-    case 'TOGGLE_MUTE': status.isMuted = !status.isMuted; break;
+    case 'TOGGLE_MUTE':
+    case 'VOLUME_MUTE': status.isMuted = !status.isMuted; break;
     case 'SHOW_DESKTOP': focusWindow('Desktop'); break;
     case 'TASK_MANAGER': focusWindow('Task Manager'); break;
     case 'LOCK_PC': msg = 'PC Locked'; break;
-    case 'UNLOCK_PC': msg = 'PC Unlock Signal Sent'; break;
+    case 'UNLOCK_PC': msg = 'Wake Signal Sent (PIN typing disabled for safety)'; break;
     case 'SCREENSHOT': screenshareActive = true; break;
   }
   realExecuteSystemCommand(command, payload);
@@ -573,26 +684,24 @@ app.use((req, res, next) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   const lan = getLanInfo();
-  const usbInfo = getUsbTetheringInfo(PORT);
-  const primaryIp = lan.interfaces[0]?.ip || '127.0.0.1';
+  const primaryUrl = lan.primary?.url || (lan.interfaces[0]?.url || `http://localhost:${PORT}`);
   
   console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
   console.log(`║                  AETHER CONTROL v2.5.0                       ║`);
   console.log(`║      Ultra-Low Latency Cockpit & Remote Orchestrator         ║`);
   console.log(`╠══════════════════════════════════════════════════════════════╣`);
   console.log(`║                                                              ║`);
-  console.log(`║  📱 OPEN ON YOUR PHONE BROWSER (TAP & GO):                   ║`);
-  console.log(`║  👉  http://${primaryIp}:${PORT}`.padEnd(63) + `║`);
+  console.log(`║  📱 RECOMMENDED PHONE LINK:                                  ║`);
+  console.log(`║  👉  ${primaryUrl}`.padEnd(63) + `║`);
   console.log(`║                                                              ║`);
   console.log(`╠──────────────────────────────────────────────────────────────╣`);
   console.log(`║  📶 ACTIVE NETWORK INTERFACES:                               ║`);
-  lan.interfaces.forEach((i, idx) => {
-    const label = idx === 0 ? '• Hotspot/LAN:' : '• Alt IP:     ';
+  lan.interfaces.forEach((i) => {
+    const label = `• ${i.label}:`.padEnd(16);
     console.log(`║  ${label} http://${i.ip}:${PORT}`.padEnd(63) + `║`);
   });
-  const usbStr = usbInfo.serverUrl || `http://192.168.42.x:${PORT} (Plug USB & Enable Tethering)`;
-  console.log(`║  • USB Cable:   ${usbStr}`.padEnd(63) + `║`);
-  console.log(`║  • Laptop Local: http://localhost:${PORT}`.padEnd(63) + `║`);
+  console.log(`║  • mDNS Domain:   http://aether-control.local:${PORT}`.padEnd(63) + `║`);
+  console.log(`║  • Laptop Local:  http://localhost:${PORT}`.padEnd(63) + `║`);
   console.log(`╚══════════════════════════════════════════════════════════════╝\n`);
-  console.log(`[AETHER] Ready for connections. Keep this terminal open.\n`);
+  console.log(`[AETHER] Engine online & ready. Keep this terminal window open.\n`);
 });

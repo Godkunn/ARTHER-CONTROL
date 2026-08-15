@@ -18,6 +18,7 @@ let latestStats = {
 
 let latestApps = [];
 let latestClipboardText = '';
+let latestClipboardImage = null;
 let latestFrameBase64 = null;
 let frameCallbacks = [];
 
@@ -67,7 +68,12 @@ export function startInputDaemon() {
           try {
             const b64 = trimmed.substring(5);
             latestClipboardText = Buffer.from(b64, 'base64').toString('utf8');
+            latestClipboardImage = null;
           } catch (_) {}
+        } else if (trimmed.startsWith('CLIP_IMG:')) {
+          const b64 = trimmed.substring(9);
+          latestClipboardImage = b64;
+          latestClipboardText = null;
         } else if (trimmed.startsWith('FRAME:')) {
           const b64 = trimmed.substring(6);
           latestFrameBase64 = b64;
@@ -123,6 +129,10 @@ export function getCachedClipboardText() {
   return latestClipboardText;
 }
 
+export function getCachedClipboardImage() {
+  return latestClipboardImage;
+}
+
 export function nativeFocusProcess(pid) {
   return sendDaemonCommand(`focus ${pid}`);
 }
@@ -148,6 +158,10 @@ export function nativeUnlock(pin = '') {
 
 export function nativeToggleTaskmgr() {
   return sendDaemonCommand('toggle_taskmgr');
+}
+
+export function nativeClearRam() {
+  return sendDaemonCommand('clear_ram');
 }
 
 export function nativeSnip() {
@@ -196,6 +210,12 @@ export function nativeAltTab() {
 
 export function nativeSendKeys(keys) {
   return sendDaemonCommand(`keys ${keys}`);
+}
+
+export function nativeTypeText(text) {
+  if (!text) return false;
+  const b64 = Buffer.from(text, 'utf8').toString('base64');
+  return sendDaemonCommand(`type_b64 ${b64}`);
 }
 
 export function nativeWake() {

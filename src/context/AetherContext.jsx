@@ -153,6 +153,8 @@ export const AetherProvider = ({ children }) => {
                 isLocked: data.isLocked !== undefined ? data.isLocked : prev.isLocked,
                 activeWindow: data.activeWindow || prev.activeWindow,
                 runningApps: data.runningApps || prev.runningApps,
+                volume: data.volume !== undefined ? data.volume : prev.volume,
+                isMuted: data.isMuted !== undefined ? data.isMuted : prev.isMuted,
                 memInfo: data.memInfo || prev.memInfo
               }));
               break;
@@ -364,7 +366,7 @@ export const AetherProvider = ({ children }) => {
 
   return (
     <AetherContext.Provider value={{
-      connected, systemStatus, activeTab, setActiveTab,
+      connected, systemStatus, setSystemStatus, activeTab, setActiveTab,
       streamMode, setStreamMode, streamQuality, setStreamQuality,
       dirtyRegionsActive, setDirtyRegionsActive,
       trackpadMode, setTrackpadMode,

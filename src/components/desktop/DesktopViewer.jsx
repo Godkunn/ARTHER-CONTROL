@@ -4,7 +4,7 @@ import { useAether } from '../../context/AetherContext';
 import {
   Monitor, Maximize2, Minimize2, Keyboard, Zap, ZoomIn, ZoomOut,
   RotateCcw, Eye, EyeOff, Wifi, ChevronUp, ChevronDown, MousePointer,
-  Crosshair, Move, Hand, Lock, Unlock, Mouse
+  Crosshair, Move, Hand, Lock, Unlock, Mouse, CornerDownLeft, Sliders, ChevronLeft, ChevronRight, X
 } from 'lucide-react';
 import VirtualKeyboard from '../keyboard/VirtualKeyboard';
 
@@ -25,6 +25,7 @@ export default function DesktopViewer() {
 
   const [touchLog, setTouchLog] = useState('Tap / buttons for clicks • 2-finger scroll • Pinch zoom');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showFullscreenHud, setShowFullscreenHud] = useState(true);
   const [clickRipple, setClickRipple] = useState(null);
   const [showCursorOverlay, setShowCursorOverlay] = useState(true);
   const [dragSelectMode, setDragSelectMode] = useState(false);
@@ -531,63 +532,112 @@ export default function DesktopViewer() {
           </div>
         )}
 
-        {/* Floating HUD Controls in Fullscreen */}
+        {/* Floating HUD Controls in Fullscreen (Collapsible & Zero Bottom Blur) */}
         {isFullscreen && (
           <>
-            <div className="absolute top-3 right-3 z-40 flex items-center gap-2 bg-black/75 backdrop-blur-md p-1.5 rounded-2xl border border-obsidian-750 shadow-2xl">
-              <button
-                onClick={() => {
-                  if (!zoomLocked) resetZoom();
-                  setZoomLocked(!zoomLocked);
-                }}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition ${
-                  zoomLocked
-                    ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
-                    : 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
-                }`}
-              >
-                {zoomLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5 text-aurora-amber animate-pulse" />}
-                <span>{zoomLocked ? 'Fixed' : 'Pinch'}</span>
-              </button>
-
-              {zoomScale > 1.05 && (
+            {showFullscreenHud ? (
+              <div className="absolute top-3 right-3 z-40 flex flex-wrap items-center gap-1.5 bg-black/85 backdrop-blur-md p-1.5 rounded-2xl border border-obsidian-750 shadow-2xl animate-fadeIn max-w-[90vw]">
+                {/* Pinch / Fixed toggle */}
                 <button
-                  onClick={resetZoom}
-                  className="px-2.5 py-1.5 rounded-xl bg-obsidian-900 border border-aurora-cyan/50 text-aurora-cyan text-xs font-mono font-bold"
+                  onClick={() => {
+                    if (!zoomLocked) resetZoom();
+                    setZoomLocked(!zoomLocked);
+                  }}
+                  className={`px-2 py-1.5 rounded-xl text-[10px] font-mono font-bold flex items-center gap-1 transition ${
+                    zoomLocked
+                      ? 'bg-obsidian-900 border border-obsidian-750 text-titanium-300'
+                      : 'bg-aurora-amber/25 border border-aurora-amber text-aurora-amber shadow-glow-amber'
+                  }`}
+                  title="Toggle Pinch Zoom"
                 >
-                  1.0x
+                  {zoomLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3 text-aurora-amber" />}
+                  <span>{zoomLocked ? 'Fixed' : 'Pinch'}</span>
                 </button>
-              )}
 
-              <button
-                onClick={toggleFullscreen}
-                className="p-2 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white"
-                title="Exit Fullscreen"
-              >
-                <Minimize2 className="w-4 h-4" />
-              </button>
-            </div>
+                {/* Zoom - / + buttons */}
+                <button
+                  onClick={() => setZoomScale(prev => Math.max(1, +(prev - 0.25).toFixed(2)))}
+                  className="w-7 h-7 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white flex items-center justify-center font-mono text-xs font-bold"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setZoomScale(prev => Math.min(3.5, +(prev + 0.25).toFixed(2)))}
+                  className="w-7 h-7 rounded-xl bg-obsidian-900 border border-obsidian-750 text-aurora-cyan hover:text-cyan-300 flex items-center justify-center font-mono text-xs font-bold"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-3.5 h-3.5" />
+                </button>
 
-            {/* Quick Floating Left/Right Thumb Trigger in Fullscreen */}
-            <div className="absolute bottom-6 right-4 z-40 flex items-center gap-2">
-              <button
-                onClick={handleExplicitLeftClick}
-                className="px-4 py-2.5 rounded-2xl bg-aurora-cyan text-obsidian-950 font-mono font-bold text-xs shadow-glow-cyan active:scale-90 transition"
-              >
-                Left Click
-              </button>
-              <button
-                onClick={handleExplicitRightClick}
-                className="px-4 py-2.5 rounded-2xl bg-aurora-pink text-white font-mono font-bold text-xs shadow-glow-pink active:scale-90 transition"
-              >
-                Right Click
-              </button>
-            </div>
+                {zoomScale > 1.05 && (
+                  <button
+                    onClick={resetZoom}
+                    className="px-2 py-1 rounded-xl bg-obsidian-900 border border-aurora-cyan/50 text-aurora-cyan text-[10px] font-mono font-bold"
+                  >
+                    1.0x
+                  </button>
+                )}
 
-            {/* FPS + Touch Log — bottom of fullscreen (does not cover screen content) */}
-            <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none flex items-center justify-between px-3 py-1 bg-black/70 backdrop-blur border-t border-obsidian-800">
-              <span className="text-[9px] font-mono text-titanium-300 truncate">{touchLog}</span>
-              <span className="text-[9px] font-mono text-aurora-cyan shrink-0 ml-2">{screenFps || 0} FPS</span>
+                {/* Enter Button */}
+                <button
+                  onClick={() => executeCommand('ENTER')}
+                  className="px-2.5 py-1.5 rounded-xl bg-aurora-cyan/20 border border-aurora-cyan/40 text-aurora-cyan text-[10px] font-mono font-bold flex items-center gap-1 hover:bg-aurora-cyan/30"
+                  title="Press Enter Key"
+                >
+                  <CornerDownLeft className="w-3 h-3" />
+                  <span>Enter</span>
+                </button>
+
+                {/* Up / Down Arrows */}
+                <button
+                  onClick={() => handlePageScroll('up')}
+                  className="w-7 h-7 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white flex items-center justify-center"
+                  title="Scroll Up"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handlePageScroll('down')}
+                  className="w-7 h-7 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white flex items-center justify-center"
+                  title="Scroll Down"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Exit Fullscreen */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="p-1.5 rounded-xl bg-obsidian-900 border border-obsidian-750 text-titanium-300 hover:text-white"
+                  title="Exit Fullscreen"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Hide Capsule Button */}
+                <button
+                  onClick={() => setShowFullscreenHud(false)}
+                  className="p-1.5 rounded-xl bg-obsidian-950 border border-obsidian-800 text-titanium-400 hover:text-white"
+                  title="Hide Controls"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              /* Minimized Floating Trigger Button */
+              <button
+                onClick={() => setShowFullscreenHud(true)}
+                className="absolute top-3 right-3 z-40 px-2.5 py-1.5 rounded-xl bg-black/60 backdrop-blur-md border border-obsidian-750 text-titanium-300 hover:text-aurora-cyan text-[10px] font-mono font-bold flex items-center gap-1 shadow-lg transition"
+                title="Show Controls"
+              >
+                <Sliders className="w-3 h-3 text-aurora-cyan" />
+                <span>Controls</span>
+              </button>
+            )}
+
+            {/* Tiny Non-Intrusive FPS Badge in Top-Left (Zero bottom blur) */}
+            <div className="absolute top-3 left-3 z-30 pointer-events-none px-2 py-0.5 rounded-lg bg-black/50 backdrop-blur text-[8px] font-mono text-aurora-cyan border border-obsidian-800">
+              {screenFps || 0} FPS
             </div>
           </>
         )}

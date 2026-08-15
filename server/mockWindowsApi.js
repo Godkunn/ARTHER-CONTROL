@@ -174,11 +174,28 @@ export function triggerSimulatedApproval(app = "Antigravity IDE") {
 export function addClipboardItem(text, source = "Phone") {
   const newItem = {
     id: `cb-${Date.now()}`,
+    type: 'text',
     text: text,
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     source: source,
     masked: false
   };
   systemState.clipboard.unshift(newItem);
+  if (systemState.clipboard.length > 25) systemState.clipboard.pop();
+  return newItem;
+}
+
+export function addClipboardImageItem(base64Data, source = "Laptop") {
+  const newItem = {
+    id: `cb-img-${Date.now()}`,
+    type: 'image',
+    data: base64Data,
+    text: '[Copied Image / Screenshot]',
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    source: source,
+    masked: false
+  };
+  systemState.clipboard.unshift(newItem);
+  if (systemState.clipboard.length > 25) systemState.clipboard.pop();
   return newItem;
 }

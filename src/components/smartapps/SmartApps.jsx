@@ -157,6 +157,7 @@ export default function SmartApps() {
 // 1. WEB & SEARCH ENGINE HUB
 // ─────────────────────────────────────────────────────────────────────────
 function BrowserHub({ apiFetch, addLog, onTrigger }) {
+  const { sendInputEvent } = useAether();
   const [urlInput, setUrlInput] = useState('');
   const [searchEngine, setSearchEngine] = useState('google');
   const [launching, setLaunching] = useState(false);
@@ -219,12 +220,10 @@ function BrowserHub({ apiFetch, addLog, onTrigger }) {
     setLaunching(false);
   };
 
-  const runBrowserAction = async (cmd, label) => {
-    try {
-      await apiFetch('/api/terminal', { method: 'POST', body: JSON.stringify({ cmd }) });
-      addLog('Browser', label);
-      onTrigger?.(`Browser: ${label}`);
-    } catch (_) {}
+  const runBrowserHotkey = (hotkey, label) => {
+    sendInputEvent({ type: 'hotkey', hotkey });
+    addLog('Browser', label);
+    onTrigger?.(`Browser: ${label}`, `Sent ${hotkey}`);
   };
 
   return (
@@ -289,17 +288,17 @@ function BrowserHub({ apiFetch, addLog, onTrigger }) {
           </button>
         </form>
 
-        {/* Browser Quick Control Keys */}
+        {/* Browser Quick Control Keys (Universal Hotkeys) */}
         <div className="grid grid-cols-4 gap-1.5 pt-1">
           {[
-            { label: '← Back', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.GoBack() }` },
-            { label: '→ Forward', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.GoForward() }` },
-            { label: '⟳ Refresh', cmd: `(New-Object -COM Shell.Application).Windows() | Select-Object -First 1 | ForEach-Object { $_.Refresh() }` },
-            { label: '✕ Close Tab', cmd: `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^w")` },
+            { label: '← Back', hotkey: 'Alt+Left', desc: 'Back' },
+            { label: '→ Forward', hotkey: 'Alt+Right', desc: 'Forward' },
+            { label: '⟳ Refresh', hotkey: 'Ctrl+R', desc: 'Refresh' },
+            { label: '✕ Close Tab', hotkey: 'Ctrl+W', desc: 'Close Tab' },
           ].map(btn => (
             <button
               key={btn.label}
-              onClick={() => runBrowserAction(btn.cmd, btn.label)}
+              onClick={() => runBrowserHotkey(btn.hotkey, btn.desc)}
               className="py-1.5 rounded-lg glass-card text-[9px] font-mono text-titanium-300 hover:text-white hover:border-aurora-blue/40 text-center transition active:scale-95"
             >
               {btn.label}
@@ -619,38 +618,40 @@ function VsCodeHub({ apiFetch, addLog, onTrigger }) {
 function ProductivityHub({ apiFetch, addLog, onTrigger }) {
   const APPS_LIST = [
     { cat: 'Media & Streaming', items: [
-      { name: 'Spotify', exe: 'spotify', desc: 'Music & Podcasts', icon: Music },
-      { name: 'VLC Player', exe: 'vlc', desc: 'Video Player', icon: Film },
-      { name: 'Media Player', exe: 'wmplayer', desc: 'Default Player', icon: Tv },
+      { name: 'Spotify', uri: 'spotify:', exe: 'spotify', desc: 'Music & Podcasts', icon: Music },
+      { name: 'VLC Player', uri: 'vlc', exe: 'vlc', desc: 'Video Player', icon: Film },
+      { name: 'Media Player', uri: 'wmplayer', exe: 'wmplayer', desc: 'Default Player', icon: Tv },
     ]},
     { cat: 'Productivity & Notes', items: [
-      { name: 'Notion', exe: 'notion', desc: 'Workspace & Docs', icon: FileText },
-      { name: 'Obsidian', exe: 'obsidian', desc: 'Knowledge Base', icon: Boxes },
-      { name: 'Figma', exe: 'figma', desc: 'UI/UX Design', icon: Palette },
-      { name: 'Notepad', exe: 'notepad', desc: 'Text Editor', icon: FileEdit },
+      { name: 'Notion', uri: 'notion:', exe: 'notion', desc: 'Workspace & Docs', icon: FileText },
+      { name: 'Obsidian', uri: 'obsidian:', exe: 'obsidian', desc: 'Knowledge Base', icon: Boxes },
+      { name: 'Figma', uri: 'https://www.figma.com', exe: 'figma', desc: 'UI/UX Design', icon: Palette },
+      { name: 'Notepad', uri: 'notepad', exe: 'notepad', desc: 'Text Editor', icon: FileEdit },
     ]},
     { cat: 'Communication', items: [
-      { name: 'Discord', exe: 'discord', desc: 'Voice & Chat', icon: MessageCircle },
-      { name: 'Slack', exe: 'slack', desc: 'Team Chat', icon: Users },
-      { name: 'WhatsApp', exe: 'whatsapp', desc: 'Messaging', icon: PhoneCall },
-      { name: 'Zoom', exe: 'zoom', desc: 'Video Meetings', icon: Video },
+      { name: 'Discord', uri: 'discord:', exe: 'discord', desc: 'Voice & Chat', icon: MessageCircle },
+      { name: 'Slack', uri: 'slack:', exe: 'slack', desc: 'Team Chat', icon: Users },
+      { name: 'WhatsApp', uri: 'whatsapp:', exe: 'whatsapp', desc: 'Messaging', icon: PhoneCall },
+      { name: 'Zoom', uri: 'zoommtg:', exe: 'zoom', desc: 'Video Meetings', icon: Video },
     ]},
     { cat: 'Quick Utilities', items: [
-      { name: 'Calculator', exe: 'calc', desc: 'Programmer Calc', icon: Calculator },
-      { name: 'Paint', exe: 'mspaint', desc: 'Drawing & Edit', icon: Brush },
-      { name: 'Snipping Tool', exe: 'snippingtool', desc: 'Screen Capture', icon: Scissors },
-      { name: 'File Explorer', exe: 'explorer', desc: 'Windows Drives', icon: Folder },
+      { name: 'Calculator', uri: 'calculator:', exe: 'calc', desc: 'Programmer Calc', icon: Calculator },
+      { name: 'Paint', uri: 'mspaint', exe: 'mspaint', desc: 'Drawing & Edit', icon: Brush },
+      { name: 'Snipping Tool', uri: 'snippingtool', exe: 'snippingtool', desc: 'Screen Capture', icon: Scissors },
+      { name: 'File Explorer', uri: 'explorer', exe: 'explorer', desc: 'Windows Drives', icon: Folder },
     ]}
   ];
 
   const launchNativeApp = async (app) => {
     try {
+      const targetUri = app.uri || app.exe;
+      const cmd = `try { Start-Process "${targetUri}" -ErrorAction Stop } catch { try { Start-Process "${app.exe}" -ErrorAction Stop } catch { Start-Process "explorer.exe" "${targetUri}" } }`;
       await apiFetch('/api/terminal', {
         method: 'POST',
-        body: JSON.stringify({ cmd: `Start-Process "${app.exe}" -ErrorAction SilentlyContinue` })
+        body: JSON.stringify({ cmd })
       });
       addLog('Apps', `Launched ${app.name} on PC`);
-      onTrigger?.(`Launched ${app.name}`, `Running ${app.exe}.exe on laptop`);
+      onTrigger?.(`Launched ${app.name}`, `Opened on laptop`);
     } catch (_) {}
   };
 

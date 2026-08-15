@@ -55,6 +55,76 @@ namespace AetherControl
         [DllImport("user32.dll")]
         static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("psapi.dll")]
+        static extern int EmptyWorkingSet(IntPtr hwProc);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr OpenProcess(uint dwDesiredAccess, bool bInheritHandle, uint dwProcessId);
+
+        [DllImport("kernel32.dll")]
+        static extern bool CloseHandle(IntPtr hObject);
+
+        const uint PROCESS_ALL_ACCESS = 0x1F0FFF;
+        const uint PROCESS_SET_QUOTA = 0x0100;
+        const uint PROCESS_QUERY_INFORMATION = 0x0400;
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct INPUT
+        {
+            public uint type;
+            public InputUnion u;
+        }
+
+        [StructLayout(LayoutKind.Explicit)]
+        struct InputUnion
+        {
+            [FieldOffset(0)] public MOUSEINPUT mi;
+            [FieldOffset(0)] public KEYBDINPUT ki;
+            [FieldOffset(0)] public HARDWAREINPUT hi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct KEYBDINPUT
+        {
+            public ushort wVk;
+            public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
+        [StructLayout(LayoutKind.Sequential)]
+        struct HARDWAREINPUT { public uint uMsg; public ushort wParamL; public ushort wParamH; }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        const uint INPUT_KEYBOARD = 1;
+        const uint KEYEVENTF_UNICODE = 0x0004;
+
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+        const uint GW_OWNER = 4;
+
+        [DllImport("user32.dll")]
+        static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        const int GWL_EXSTYLE = -20;
+        const int WS_EX_TOOLWINDOW = 0x00000080;
+        const int WS_EX_APPWINDOW = 0x00040000;
+
         const uint WM_SYSCOMMAND = 0x0112;
         const int SC_MONITORPOWER = 0xF170;
         static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
@@ -85,6 +155,71 @@ namespace AetherControl
             }
             _jpegParams = new EncoderParameters(1);
             _jpegParams.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
+        }
+
+        static void TypeUnicodeString(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            List<INPUT> inputs = new List<INPUT>();
+            foreach (char c in text)
+            {
+                if (c == '\r') continue;
+                if (c == '\n')
+                {
+                    INPUT down = new INPUT { type = INPUT_KEYBOARD };
+                    down.u.ki.wVk = 0x0D; // Enter
+                    down.u.ki.wScan = 0x1C;
+                    down.u.ki.dwFlags = 0;
+                    inputs.Add(down);
+
+                    INPUT up = new INPUT { type = INPUT_KEYBOARD };
+                    up.u.ki.wVk = 0x0D;
+                    up.u.ki.wScan = 0x1C;
+                    up.u.ki.dwFlags = KEYEVENTF_KEYUP;
+                    inputs.Add(up);
+                    continue;
+                }
+
+                INPUT kDown = new INPUT { type = INPUT_KEYBOARD };
+                kDown.u.ki.wVk = 0;
+                kDown.u.ki.wScan = (ushort)c;
+                kDown.u.ki.dwFlags = KEYEVENTF_UNICODE;
+                inputs.Add(kDown);
+
+                INPUT kUp = new INPUT { type = INPUT_KEYBOARD };
+                kUp.u.ki.wVk = 0;
+                kUp.u.ki.wScan = (ushort)c;
+                kUp.u.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+                inputs.Add(kUp);
+            }
+
+            if (inputs.Count > 0)
+            {
+                SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
+            }
+        }
+
+        static long ClearSystemRamWorkingSet()
+        {
+            long freedCount = 0;
+            foreach (Process p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (p.Id <= 4) continue;
+                    IntPtr hProc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_QUERY_INFORMATION, false, (uint)p.Id);
+                    if (hProc != IntPtr.Zero)
+                    {
+                        EmptyWorkingSet(hProc);
+                        CloseHandle(hProc);
+                        freedCount++;
+                    }
+                }
+                catch {}
+            }
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            return freedCount;
         }
 
         static string CaptureScreenBase64(double scale = 0.85)
@@ -141,26 +276,48 @@ namespace AetherControl
 
         static string GetRunningAppsJson()
         {
-            StringBuilder sb = new StringBuilder();
-            sb.Append("[");
-            bool first = true;
-            foreach (Process p in Process.GetProcesses())
+            List<string> items = new List<string>();
+            HashSet<uint> seenPids = new HashSet<uint>();
+
+            EnumWindows(delegate (IntPtr hWnd, IntPtr lParam)
             {
+                if (!IsWindowVisible(hWnd)) return true;
+
+                StringBuilder sb = new StringBuilder(256);
+                if (GetWindowText(hWnd, sb, 256) <= 0) return true;
+                string title = sb.ToString().Trim();
+                if (string.IsNullOrEmpty(title) || title == "Program Manager" || title == "Windows Input Experience") return true;
+
+                int exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
+                if ((exStyle & WS_EX_TOOLWINDOW) != 0) return true;
+
+                IntPtr owner = GetWindow(hWnd, GW_OWNER);
+                if (owner != IntPtr.Zero && (exStyle & WS_EX_APPWINDOW) == 0) return true;
+
+                uint pid;
+                GetWindowThreadProcessId(hWnd, out pid);
+
+                if (seenPids.Contains(pid)) return true;
+                seenPids.Add(pid);
+
+                string procName = "App";
                 try
                 {
-                    if (!string.IsNullOrEmpty(p.MainWindowTitle) && p.MainWindowHandle != IntPtr.Zero)
+                    using (Process p = Process.GetProcessById((int)pid))
                     {
-                        if (!first) sb.Append(",");
-                        first = false;
-                        string cleanTitle = p.MainWindowTitle.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "");
-                        string cleanProc = p.ProcessName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                        sb.Append(string.Format("{{\"id\":\"app-{0}\",\"pid\":{0},\"name\":\"{1}\",\"title\":\"{2}\",\"active\":false}}", p.Id, cleanProc, cleanTitle));
+                        procName = p.ProcessName;
                     }
                 }
                 catch {}
-            }
-            sb.Append("]");
-            return sb.ToString();
+
+                string cleanTitle = title.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "");
+                string cleanProc = procName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+                items.Add(string.Format("{{\"id\":\"app-{0}\",\"pid\":{0},\"name\":\"{1}\",\"title\":\"{2}\",\"active\":false}}", pid, cleanProc, cleanTitle));
+                return true;
+            }, IntPtr.Zero);
+
+            return "[" + string.Join(",", items.ToArray()) + "]";
         }
 
         [STAThread]
@@ -288,6 +445,17 @@ namespace AetherControl
                         string keys = line.Substring(5);
                         SendKeys.SendWait(keys);
                     }
+                    else if (cmd == "type_b64" && parts.Length >= 2)
+                    {
+                        try
+                        {
+                            string b64 = parts[1];
+                            byte[] bytes = Convert.FromBase64String(b64);
+                            string txt = Encoding.UTF8.GetString(bytes);
+                            TypeUnicodeString(txt);
+                        }
+                        catch {}
+                    }
                     else if (cmd == "vol_up")
                     {
                         keybd_event(0xAF, 0, 0, 0); // VK_VOLUME_UP
@@ -384,104 +552,11 @@ namespace AetherControl
                     }
                     else if (cmd == "unlock")
                     {
-                        // 1. Wake physical display hardware & execution thread
-                        SendMessage(HWND_BROADCAST, WM_SYSCOMMAND, (IntPtr)SC_MONITORPOWER, (IntPtr)(-1));
-                        SetThreadExecutionState(unchecked((int)0x80000003));
-                        
-                        IntPtr hInputDesk = OpenInputDesktop(0, false, 0x01FF);
-                        if (hInputDesk != IntPtr.Zero)
-                        {
-                            try { SetThreadDesktop(hInputDesk); } catch {}
-                        }
-
-                        // Jiggle mouse to clear screensaver
-                        mouse_event(MOUSEEVENTF_MOVE, 40, 40, 0, 0);
-                        Thread.Sleep(30);
-                        mouse_event(MOUSEEVENTF_MOVE, -40, -40, 0, 0);
-                        Thread.Sleep(60);
-
-                        // 2. Dismiss Lock Screen Wallpaper (Hardware Space + Escape + Space)
-                        keybd_event(0x20, 0x39, 0, 0); // Space
-                        Thread.Sleep(40);
-                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
-                        Thread.Sleep(200);
-
-                        keybd_event(0x1B, 0x01, 0, 0); // Escape
-                        Thread.Sleep(40);
-                        keybd_event(0x1B, 0x01, KEYEVENTF_KEYUP, 0);
-                        Thread.Sleep(200);
-
-                        keybd_event(0x20, 0x39, 0, 0); // Space again
-                        Thread.Sleep(40);
-                        keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
-                        
-                        // 3. Windows 10/11 Lock Screen sliding transition delay
-                        Thread.Sleep(850);
-
-                        // 4. If PIN provided, switch from Biometrics (Fingerprint/Hello) to PIN and type
-                        if (parts.Length >= 2 && !string.IsNullOrEmpty(parts[1]))
-                        {
-                            string pin = parts[1];
-
-                            // Switch to PIN mode if on Biometrics page: Tab -> Space -> Right -> Enter
-                            keybd_event(0x09, 0x0F, 0, 0); // Tab
-                            Thread.Sleep(30);
-                            keybd_event(0x09, 0x0F, KEYEVENTF_KEYUP, 0);
-                            Thread.Sleep(120);
-
-                            keybd_event(0x20, 0x39, 0, 0); // Space
-                            Thread.Sleep(30);
-                            keybd_event(0x20, 0x39, KEYEVENTF_KEYUP, 0);
-                            Thread.Sleep(150);
-
-                            keybd_event(0x27, 0x4D, 0, 0); // Right
-                            Thread.Sleep(30);
-                            keybd_event(0x27, 0x4D, KEYEVENTF_KEYUP, 0);
-                            Thread.Sleep(120);
-
-                            keybd_event(0x0D, 0x1C, 0, 0); // Enter
-                            Thread.Sleep(30);
-                            keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
-                            Thread.Sleep(250);
-
-                            // Also click center area as secondary focus guarantee
-                            int midX = Screen.PrimaryScreen.Bounds.Width / 2;
-                            int midY = Screen.PrimaryScreen.Bounds.Height / 2;
-                            SetCursorPos(midX, midY + 40);
-                            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-                            Thread.Sleep(20);
-                            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-                            Thread.Sleep(150);
-
-                            // 5. Inject PIN characters via Hardware Scan Codes
-                            foreach (char c in pin)
-                            {
-                                byte vk = 0;
-                                if (c >= '0' && c <= '9') vk = (byte)(0x30 + (c - '0'));
-                                else if (c >= 'a' && c <= 'z') vk = (byte)(0x41 + (c - 'a'));
-                                else if (c >= 'A' && c <= 'Z') vk = (byte)(0x41 + (c - 'A'));
-
-                                if (vk > 0)
-                                {
-                                    byte scan = (byte)MapVirtualKey(vk, 0);
-                                    keybd_event(vk, scan, 0, 0);
-                                    Thread.Sleep(45);
-                                    keybd_event(vk, scan, KEYEVENTF_KEYUP, 0);
-                                    Thread.Sleep(50);
-                                }
-                            }
-
-                            // 6. Press Enter to submit PIN
-                            Thread.Sleep(150);
-                            keybd_event(0x0D, 0x1C, 0, 0);
-                            Thread.Sleep(50);
-                            keybd_event(0x0D, 0x1C, KEYEVENTF_KEYUP, 0);
-                        }
-
-                        if (hInputDesk != IntPtr.Zero)
-                        {
-                            try { CloseDesktop(hInputDesk); } catch {}
-                        }
+                        // [DISABLED FOR SAFETY]
+                        // Remote lock screen PIN injection relies on Windows LogonUI manipulation
+                        // which carries a risk of breaking the Windows Authentication flow.
+                        // Removed per developer/user request for maximum system safety.
+                        Console.WriteLine("UNLOCK DISABLED: Safety policy active.");
                     }
                     else if (cmd == "toggle_taskmgr")
                     {
@@ -494,6 +569,11 @@ namespace AetherControl
                         {
                             try { Process.Start("taskmgr.exe"); } catch {}
                         }
+                    }
+                    else if (cmd == "clear_ram")
+                    {
+                        long count = ClearSystemRamWorkingSet();
+                        Console.WriteLine("RAM_FREED:" + count);
                     }
                     else if (cmd == "snip")
                     {
@@ -547,11 +627,43 @@ namespace AetherControl
                     {
                         try
                         {
-                            if (Clipboard.ContainsText())
+                            for (int retry = 0; retry < 3; retry++)
                             {
-                                string txt = Clipboard.GetText();
-                                string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(txt));
-                                Console.WriteLine("CLIP:" + b64);
+                                try
+                                {
+                                    if (Clipboard.ContainsText())
+                                    {
+                                        string txt = Clipboard.GetText();
+                                        if (!string.IsNullOrEmpty(txt))
+                                        {
+                                            string b64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(txt));
+                                            Console.WriteLine("CLIP:" + b64);
+                                        }
+                                        break;
+                                    }
+                                    else if (Clipboard.ContainsImage())
+                                    {
+                                        Image img = Clipboard.GetImage();
+                                        if (img != null)
+                                        {
+                                            using (MemoryStream ms = new MemoryStream())
+                                            {
+                                                img.Save(ms, ImageFormat.Jpeg);
+                                                string b64 = Convert.ToBase64String(ms.ToArray());
+                                                Console.WriteLine("CLIP_IMG:" + b64);
+                                            }
+                                        }
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
+                                }
+                                catch
+                                {
+                                    Thread.Sleep(25);
+                                }
                             }
                         }
                         catch {}
@@ -563,7 +675,18 @@ namespace AetherControl
                             string b64 = parts[1];
                             byte[] bytes = Convert.FromBase64String(b64);
                             string txt = Encoding.UTF8.GetString(bytes);
-                            Clipboard.SetText(txt);
+                            for (int retry = 0; retry < 5; retry++)
+                            {
+                                try
+                                {
+                                    Clipboard.SetText(txt);
+                                    break;
+                                }
+                                catch
+                                {
+                                    Thread.Sleep(30);
+                                }
+                            }
                         }
                         catch {}
                     }
