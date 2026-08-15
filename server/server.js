@@ -262,12 +262,34 @@ function checkAntigravityApproval() {
       return null;
     }
 
-    // If last action is from MODEL or SYSTEM and waiting for feedback / plan approval / questions
+    // If last action is from MODEL or SYSTEM and waiting for feedback / plan approval / questions / command execution
     if (lastObj.source === 'MODEL' || lastObj.source === 'SYSTEM' || lastObj.type === 'PLANNER_RESPONSE') {
       const rawText = JSON.stringify(lastObj);
+      const hasToolCalls = Array.isArray(lastObj.tool_calls) && lastObj.tool_calls.length > 0;
+      const runCommandTool = hasToolCalls ? lastObj.tool_calls.find(t => t && t.name === 'run_command') : null;
       const isPlanFeedback = rawText.includes('"RequestFeedback":true') || rawText.includes('implementation_plan.md');
       const isAskQuestion = rawText.includes('"name":"ask_question"');
       const isPrompting = rawText.includes('Approval Required') || rawText.includes('Proceed') || rawText.includes('user review');
+
+      if (runCommandTool) {
+        const cmd = (runCommandTool.args && runCommandTool.args.CommandLine) ? runCommandTool.args.CommandLine : 'Terminal Command';
+        return {
+          id: `antigravity-cmd-${lastObj.step_index ?? Date.now()}`,
+          app: 'Antigravity Terminal',
+          title: `Allow Command: ${cmd.substring(0, 32)}${cmd.length > 32 ? '...' : ''}`,
+          description: `Antigravity is requesting permission to execute: "${cmd}". Tap an option below:`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          severity: 'danger',
+          isSystemDialog: true,
+          actions: [
+            { id: '1', label: '1. Allow this time', type: 'primary' },
+            { id: '2', label: '2. Always in convo', type: 'secondary' },
+            { id: '3', label: '3. Always in project', type: 'secondary' },
+            { id: '4', label: '4. Always allow', type: 'secondary' },
+            { id: '5', label: '5. No / Deny', type: 'danger' }
+          ]
+        };
+      }
 
       if (isPlanFeedback || isAskQuestion || isPrompting) {
         let extractedTitle = isPlanFeedback ? 'Plan Review & Proceed Approval' : (isAskQuestion ? 'Question / Choice Needed' : 'Action Required');
@@ -281,7 +303,7 @@ function checkAntigravityApproval() {
 
         // If ask_question tool was called, extract the real question and options!
         try {
-          if (Array.isArray(lastObj.tool_calls)) {
+          if (hasToolCalls) {
             const qTool = lastObj.tool_calls.find(t => t && t.name === 'ask_question');
             if (qTool && qTool.args && qTool.args.questions && qTool.args.questions.length > 0) {
               const q = qTool.args.questions[0];

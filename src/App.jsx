@@ -100,7 +100,7 @@ function MainContent() {
       <Navbar />
       <GlobalApprovalBanner />
 
-      <main className="flex-1 overflow-y-auto">
+      <main className={`flex-1 ${activeTab === 'desktop' ? 'overflow-hidden touch-none overscroll-none' : 'overflow-y-auto'}`}>
         <ErrorBoundary key={activeTab}>
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'desktop' && <DesktopViewer />}

@@ -274,6 +274,20 @@ namespace AetherControl
             return "Desktop";
         }
 
+        static readonly HashSet<string> IgnoredProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "TextInputHost", "dwm", "conhost", "svchost", "taskhostw",
+            "nvspcaps64", "SearchApp", "SearchHost", "StartMenuExperienceHost", "ShellExperienceHost",
+            "LockApp", "RuntimeBroker", "WmiPrvSE", "SystemSettings", "cmd"
+        };
+
+        static readonly HashSet<string> IgnoredTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Program Manager", "Windows Input Experience", "MSCTFIME UI", "Default IME", "Settings",
+            "Desktop", "Windows Shell Experience", "Battery Meter", "Network Flyout", "Notification Area",
+            "Taskbar", "DWM Notification Window", "Task Switching", "NVIDIA GeForce Overlay"
+        };
+
         static string GetRunningAppsJson()
         {
             List<string> items = new List<string>();
@@ -286,7 +300,7 @@ namespace AetherControl
                 StringBuilder sb = new StringBuilder(256);
                 if (GetWindowText(hWnd, sb, 256) <= 0) return true;
                 string title = sb.ToString().Trim();
-                if (string.IsNullOrEmpty(title) || title == "Program Manager" || title == "Windows Input Experience") return true;
+                if (string.IsNullOrEmpty(title) || IgnoredTitles.Contains(title)) return true;
 
                 int exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
                 if ((exStyle & WS_EX_TOOLWINDOW) != 0) return true;
@@ -298,7 +312,6 @@ namespace AetherControl
                 GetWindowThreadProcessId(hWnd, out pid);
 
                 if (seenPids.Contains(pid)) return true;
-                seenPids.Add(pid);
 
                 string procName = "App";
                 try
@@ -310,8 +323,24 @@ namespace AetherControl
                 }
                 catch {}
 
+                if (IgnoredProcs.Contains(procName)) return true;
+                if (procName.Equals("explorer", StringComparison.OrdinalIgnoreCase) && (title == "explorer" || title == "Desktop")) return true;
+
+                seenPids.Add(pid);
+
+                string friendlyName = procName;
+                if (procName.Equals("Code", StringComparison.OrdinalIgnoreCase)) friendlyName = "VS Code / Antigravity";
+                else if (procName.Equals("chrome", StringComparison.OrdinalIgnoreCase)) friendlyName = "Google Chrome";
+                else if (procName.Equals("msedge", StringComparison.OrdinalIgnoreCase)) friendlyName = "Microsoft Edge";
+                else if (procName.Equals("explorer", StringComparison.OrdinalIgnoreCase)) friendlyName = "File Explorer";
+                else if (procName.Equals("WindowsTerminal", StringComparison.OrdinalIgnoreCase)) friendlyName = "Terminal";
+                else if (procName.Equals("powershell", StringComparison.OrdinalIgnoreCase)) friendlyName = "PowerShell";
+                else if (procName.Equals("Spotify", StringComparison.OrdinalIgnoreCase)) friendlyName = "Spotify";
+                else if (procName.Equals("Discord", StringComparison.OrdinalIgnoreCase)) friendlyName = "Discord";
+                else if (procName.Equals("Notepad", StringComparison.OrdinalIgnoreCase)) friendlyName = "Notepad";
+
                 string cleanTitle = title.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "");
-                string cleanProc = procName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                string cleanProc = friendlyName.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
                 items.Add(string.Format("{{\"id\":\"app-{0}\",\"pid\":{0},\"name\":\"{1}\",\"title\":\"{2}\",\"active\":false}}", pid, cleanProc, cleanTitle));
                 return true;
